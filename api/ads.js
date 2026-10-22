@@ -26,6 +26,26 @@ export function validateAd(fields){
  return ad;
 }
 const publicFields='id,enabled,title,body,button_text,target_url,image_url,advertiser,erid,starts_at,ends_at,updated_at';
+async function uploadAdImage(req,res,db){
+ const upload=req.body?.upload;
+ if(!upload||typeof upload.data!=='string'||upload.data.length>2500000)return json(res,400,{error:'Выбери фото не больше 1,8 МБ после подготовки'});
+ const contentType=upload.contentType;
+ if(!['image/jpeg','image/png','image/webp'].includes(contentType))return json(res,400,{error:'Поддерживаются JPG, PNG и WebP'});
+ let binary;try{binary=atob(upload.data)}catch{return json(res,400,{error:'Файл изображения повреждён'})}
+ if(binary.length>1800000)return json(res,413,{error:'Фото превышает допустимый размер 1,8 МБ'});
+ const bytes=Uint8Array.from(binary,ch=>ch.charCodeAt(0));
+ const jpeg=contentType==='image/jpeg'&&bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+ const png=contentType==='image/png'&&bytes.length>=8&&[137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v);
+ const webp=contentType==='image/webp'&&bytes.length>=12&&String.fromCharCode(...bytes.slice(0,4))==='RIFF'&&String.fromCharCode(...bytes.slice(8,12))==='WEBP';
+ if(!jpeg&&!png&&!webp)return json(res,400,{error:'Содержимое файла не похоже на выбранный формат изображения'});
+ const ext=contentType==='image/jpeg'?'jpg':contentType==='image/png'?'png':'webp';
+ const path='ads/'+Date.now()+'-'+Math.random().toString(36).slice(2,14)+'.'+ext;
+ const {error}=await db.storage.from('ad-images').upload(path,bytes,{contentType,cacheControl:'31536000',upsert:false});
+ if(error)throw error;
+ const result=db.storage.from('ad-images').getPublicUrl(path);
+ if(!result?.data?.publicUrl)throw new Error('Не удалось получить публичный URL изображения');
+ return json(res,200,{ok:true,image_url:result.data.publicUrl});
+}
 export function createAdsHandler({database=getDb,env=process.env}={}){return async(req,res)=>{
  if(!['GET','POST'].includes(req.method))return json(res,405,{error:'Метод не поддерживается'});
  const manage=req.method==='POST'||req.query?.manage==='1';
@@ -36,6 +56,7 @@ export function createAdsHandler({database=getDb,env=process.env}={}){return asy
    const {data,error}=await db.from('advertisements').select(publicFields).eq('id',1).single();if(error)throw error;
    return json(res,200,{ad:manage||activeAd(data)?data:null});
   }
+  if(req.query?.upload==='1'){try{return await uploadAdImage(req,res,db)}catch{return json(res,503,{error:'Не удалось загрузить фото. Проверь Storage и повтори попытку'})}}
   let ad;try{ad=validateAd(req.body?.fields)}catch(e){return json(res,400,{error:e.message})}
   let q=db.from('advertisements').update({...ad,updated_at:new Date().toISOString()}).eq('id',1);
   if(req.body.updated_at)q=q.eq('updated_at',req.body.updated_at);
