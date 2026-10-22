@@ -35,6 +35,9 @@ export function createCandidatesHandler({database=getDb,env=process.env}={}){
    if(!user?.id)return json(res,401,{error:'Войди через Telegram, чтобы создать резюме'});
    const b=req.body||{};
    if(b.action==='delete'){
+    const {data:profile,error:profileError}=await db.from('candidate_profiles').select('id').eq('telegram_id',String(user.id)).maybeSingle();
+    if(profileError)throw profileError;
+    if(profile?.id){const {error:notificationsError}=await db.from('candidate_job_notifications').delete().eq('profile_id',profile.id);if(notificationsError)throw notificationsError}
     const {error}=await db.from('candidate_profiles').delete().eq('telegram_id',String(user.id));if(error)throw error;
     return json(res,200,{ok:true,mine:null});
    }
