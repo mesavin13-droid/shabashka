@@ -9,6 +9,7 @@ export function createRoleHandler({database=getDb,env=process.env}={}){return as
  if(!user?.id)return json(res,401,{error:'Войди через Telegram'});
  const db=database();if(!db)return json(res,503,{error:'База данных не настроена'});
  try{
+  const {data:block,error:blockError}=await db.from('user_blocks').select('telegram_id').eq('telegram_id',String(user.id)).maybeSingle();if(blockError)throw blockError;if(block)return json(res,403,{error:'Доступ к аккаунту ограничен. Напиши администратору @papadim1.'});
   if(req.method==='GET'){const {data,error}=await db.from('user_roles').select('role').eq('telegram_id',String(user.id)).maybeSingle();if(error)throw error;return json(res,200,{role:data?.role||null})}
   const role=req.body?.role;if(!['job_seeker','employer'].includes(role))return json(res,400,{error:'Выбери роль'});
   const {data,error}=await db.from('user_roles').upsert({telegram_id:String(user.id),role,updated_at:new Date().toISOString()},{onConflict:'telegram_id'}).select('role').single();
