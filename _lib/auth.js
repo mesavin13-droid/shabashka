@@ -36,7 +36,7 @@ export async function requireAdmin(req,env=process.env){
 
 export function signSession(user,env=process.env,now=Date.now()){
  if(!env.TELEGRAM_WEBHOOK_SECRET)throw new Error('Login not configured');
- const payload=Buffer.from(JSON.stringify({id:String(user.id),name:String(user.name||'').slice(0,100),exp:Math.floor(now/1000)+86400})).toString('base64url');
+ const payload=Buffer.from(JSON.stringify({id:String(user.id),name:String(user.name||'').slice(0,100),exp:Math.floor(now/1000)+30*24*60*60})).toString('base64url');
  return `shb.${payload}.${createHmac('sha256',env.TELEGRAM_WEBHOOK_SECRET).update('session:'+payload).digest('base64url')}`;
 }
 export function verifySession(token,env=process.env,now=Date.now()){
