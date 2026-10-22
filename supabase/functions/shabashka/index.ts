@@ -16,7 +16,7 @@ async function runtime(){
    config:(req:any,res:any)=>req.method==='GET'?res.status(200).json({mode:'live',botUsername:env.TELEGRAM_BOT_USERNAME,telegramClientId:null,botLogin:true}):res.status(405).json({error:'Method not allowed'}),
    jobs:jobs.createJobsHandler({database:()=>db}),
    telegram:telegram.createTelegramHandler({database:()=>db,env,allowedAdmin:(id:number)=>auth.isAdmin(id,env),send:(chatId:number,text:string,extra:object={})=>bot.sendTelegram(chatId,text,extra,env.TELEGRAM_BOT_TOKEN),answer:(id:string,text:string)=>bot.answerCallback(id,text,env.TELEGRAM_BOT_TOKEN)}),
-   session:async(req:any,res:any)=>{if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});try{const user=await auth.getIdentity(req,env);res.status(200).json({user:user?{...user,admin:auth.isAdmin(user.id,env)}:null})}catch{res.status(401).json({error:'Unauthorized'})}},
+   session:async(req:any,res:any)=>{if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});try{const user=await auth.getIdentity(req,env);const token=user?auth.signSession({id:user.id,name:user.name},env):null;res.status(200).json({user:user?{...user,admin:auth.isAdmin(user.id,env)}:null,...(token?{token}:{})})}catch{res.status(401).json({error:'Unauthorized'})}},
    auth:login.createAuthHandler({database:()=>db,env}),
    ads:ads.createAdsHandler({database:()=>db,env}),
    admin:admin.createAdminHandler({database:()=>db,env})
