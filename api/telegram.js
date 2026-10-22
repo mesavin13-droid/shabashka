@@ -72,11 +72,15 @@ export function createTelegramHandler({database=getDb,allowedAdmin=isAdmin,send=
    if(roleError)throw roleError;
    const site=String(env.SITE_URL||'https://shabashka-nsk.vercel.app').replace(/\/$/,'');
    const text=admin?'Привет, администратор! Перешли вакансию текстом или фото с подписью — я обработаю объявление.':savedRole?.role==='job_seeker'?'Ты выбрал роль «Ищу работу». Я пришлю сюда новые вакансии по категориям из твоего резюме.':savedRole?.role==='employer'?'Ты выбрал роль «Работодатель». Присылай вакансию текстом или фото с подписью. После модерации я сообщу результат. На сайте можно смотреть резюме исполнителей.':'Добро пожаловать в ШАБАШКА! Выбери, зачем ты пришёл — я настрою возможности и Telegram-уведомления.';
-   await send(m.chat.id,text,{reply_markup:{inline_keyboard:[
+   const keyboard=admin?[
+    [{text:'Открыть панель ШАБАШКА',url:site}],
+    [{text:'Задать вопрос · @papadim1',url:'https://t.me/papadim1'}]
+   ]:[
     [{text:'🔎 Ищу работу',callback_data:'role:job_seeker'},{text:'🧰 Я работодатель',callback_data:'role:employer'}],
     [{text:'Открыть ШАБАШКА',url:site}],
     [{text:'Задать вопрос · @papadim1',url:'https://t.me/papadim1'}]
-   ]}});return json(res,200,{ok:true})
+   ];
+   await send(m.chat.id,text,{reply_markup:{inline_keyboard:keyboard}});return json(res,200,{ok:true})
   }
   if(!admin){
    const {data:savedRole,error:roleError}=await db.from('user_roles').select('role').eq('telegram_id',String(actor.id)).maybeSingle();
