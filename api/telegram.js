@@ -6,6 +6,7 @@ import {isAdmin} from '../_lib/auth.js';
 import {prepareImport,importReceipt} from '../_lib/import-job.js';
 import {sendTelegram,answerCallback,reviewButtons} from '../_lib/bot.js';
 import {json,onlyMethod} from '../_lib/http.js';
+import {notifyMatchingCandidates} from '../_lib/notify-candidates.js';
 function sameSecret(a,b){if(!a||!b)return false;const x=Buffer.from(String(a)),y=Buffer.from(String(b));return x.length===y.length&&timingSafeEqual(x,y)}
 export function createTelegramHandler({database=getDb,allowedAdmin=isAdmin,send=sendTelegram,answer=answerCallback,env=process.env}={}){return async function handler(req,res){
  if(!onlyMethod(req,res,'POST'))return;
@@ -44,6 +45,9 @@ export function createTelegramHandler({database=getDb,allowedAdmin=isAdmin,send=
    const {data:changed,error}=await db.from('jobs').update({status:to,updated_at:new Date().toISOString()}).eq('id',id).eq('status',from).select('id');if(error)throw error;
    if(!changed?.length){await answer(cb.id,'Уже обработано');return json(res,200,{ok:true})}
    await answer(cb.id,to==='published'?'Опубликовано':to==='archived'?'Снято с сайта':'Отклонено');
+   if(to==='published'){
+    try{const {data:publishedJob}=await db.from('jobs').select('*').eq('id',id).maybeSingle();if(publishedJob)await notifyMatchingCandidates({database:db,job:publishedJob,send,env})}catch{console.error('Candidate alerts failed after Telegram publish')}
+   }
    if(action==='archive'&&cb.message?.chat?.id){try{await send(cb.message.chat.id,'Объявление снято с сайта. Можно вернуть его обратно.',{reply_markup:{inline_keyboard:[[{text:'Вернуть на сайт',callback_data:`restore:${id}`}]]}})}catch{console.error('Archived; Telegram receipt delivery failed')}}
    return json(res,200,{ok:true});
   }
@@ -60,12 +64,13 @@ export function createTelegramHandler({database=getDb,allowedAdmin=isAdmin,send=
    const prior=existing[0];
    if(admin&&record.status==='published'&&prior.status==='pending'){
     const {data:changed,error}=await db.from('jobs').update({status:'published',source_allowed:true,updated_at:new Date().toISOString()}).eq('id',prior.id).eq('status','pending').select('id');if(error)throw error;
-    if(changed?.length){const receipt=importReceipt(record,prior.id,env.SITE_URL);try{await send(m.chat.id,receipt.text,{reply_markup:receipt.reply_markup})}catch{console.error('Published; receipt delivery failed')}return json(res,200,{ok:true})}
+    if(changed?.length){const publishedRecord={...record,id:prior.id,status:'published'};try{await notifyMatchingCandidates({database:db,job:publishedRecord,send,env})}catch{console.error('Candidate alerts failed after duplicate publish')}const receipt=importReceipt(record,prior.id,env.SITE_URL);try{await send(m.chat.id,receipt.text,{reply_markup:receipt.reply_markup})}catch{console.error('Published; receipt delivery failed')}return json(res,200,{ok:true})}
    }
    await send(m.chat.id,'Эта вакансия уже есть в базе. Повтор не добавлен.');return json(res,200,{ok:true})
   }
   const {data:job,error}=await db.from('jobs').insert(record).select('id').single();
   if(error){if(error.code==='23505'){await send(m.chat.id,'Такая вакансия уже добавлена.');return json(res,200,{ok:true})}throw error}
+  if(record.status==='published'){try{await notifyMatchingCandidates({database:db,job:{...record,id:job.id},send,env})}catch{console.error('Candidate alerts failed after new publish')}}
   const receipt=importReceipt(record,job.id,env.SITE_URL,{canManage:admin});try{await send(m.chat.id,receipt.text,{reply_markup:receipt.reply_markup})}catch{console.error('Import saved; Telegram receipt delivery failed')}
   if(!admin&&record.status==='pending'){
    for(const adminId of (env.TELEGRAM_ADMIN_IDS||'').split(',').map(x=>x.trim()).filter(Boolean)){
