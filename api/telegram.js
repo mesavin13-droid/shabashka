@@ -81,7 +81,7 @@ export function createTelegramHandler({database=getDb,allowedAdmin=isAdmin,send=
    const {data:savedRole,error:roleError}=await db.from('user_roles').select('role').eq('telegram_id',String(actor.id)).maybeSingle();
    if(roleError)throw roleError;
    if(!savedRole?.role){await send(m.chat.id,'Сначала выбери свою роль:',{reply_markup:{inline_keyboard:[[{text:'🔎 Ищу работу',callback_data:'role:job_seeker'},{text:'🧰 Я работодатель',callback_data:'role:employer'}]]}});return json(res,200,{ok:true})}
-   if(savedRole.role==='job_seeker'){await send(m.chat.id,'Ты выбрал роль «Ищу работу». Заполни резюме и выбери категории на сайте, чтобы получать подходящие вакансии. Отправлять вакансии могут работодатели.',{reply_markup:{inline_keyboard:[[{text:'Заполнить резюме',url:site+'/#profile'}]]}});return json(res,200,{ok:true})}
+   if(savedRole.role==='job_seeker'){await send(m.chat.id,'Ты выбрал роль «Ищу работу». Заполни резюме и выбери категории на сайте, чтобы получать подходящие вакансии. Отправлять вакансии могут работодатели.',{reply_markup:{inline_keyboard:[[{text:'Заполнить резюме',url:String(env.SITE_URL||'https://shabashka-nsk.vercel.app').replace(/\\/$/,'')+'/#profile'}]]}});return json(res,200,{ok:true})}
   }
   let record;try{record=prepareImport(m,actor.id,{autoPublish:admin&&env.TELEGRAM_AUTO_PUBLISH!=='false'})}catch(e){if(e.message!=='TEXT_LENGTH')throw e;await send(m.chat.id,'Пришли текст вакансии от 15 до 4000 символов. Подойдёт и фото с подписью. Фото без текста пока не распознаю.');return json(res,200,{ok:true})}
   const {data:existing,error:lookupError}=await db.from('jobs').select('id,status').or(`source_key.eq.${record.source_key},content_hash.eq.${record.content_hash}`).limit(1);if(lookupError)throw lookupError;
