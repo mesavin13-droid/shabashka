@@ -1,7 +1,7 @@
 import process from 'node:process';
 import {json} from '../_lib/http.js';
 import {getDb} from '../_lib/db.js';
-import {getIdentity} from '../_lib/auth.js';
+import {getIdentity,isAdmin} from '../_lib/auth.js';
 
 const categories=['Склад','Доставка','Стройка','Уборка','Мероприятия','Общепит','Торговля','Другое','Все'];
 const districts=['Ленинский','Октябрьский','Центральный','Кировский','Заельцовский','Первомайский','Калининский','Дзержинский','Железнодорожный','Советский'];
@@ -18,7 +18,7 @@ export function createCandidatesHandler({database=getDb,env=process.env}={}){
   try{
    if(user?.id){const {data:block,error:blockError}=await db.from('user_blocks').select('telegram_id').eq('telegram_id',String(user.id)).maybeSingle();if(blockError)throw blockError;if(block)return json(res,403,{error:'Доступ к аккаунту ограничен. Напиши администратору @papadim1.'})}
    if(req.method==='GET'){
-    let role=null;if(user?.id){const {data:roleRow,error:roleError}=await db.from('user_roles').select('role').eq('telegram_id',String(user.id)).maybeSingle();if(roleError)throw roleError;role=roleRow?.role||null}
+    let role=null;if(user?.id){if(isAdmin(user.id,env))role='employer';else{const {data:roleRow,error:roleError}=await db.from('user_roles').select('role').eq('telegram_id',String(user.id)).maybeSingle();if(roleError)throw roleError;role=roleRow?.role||null}}
     const {data:profileRows,error:profilesError}=role==='employer'?await db.from('candidate_profiles').select('telegram_id,'+publicFields).eq('is_public',true).order('updated_at',{ascending:false}).limit(150):{data:[],error:null};
     if(profilesError)throw profilesError;
     let profiles=profileRows||[];
