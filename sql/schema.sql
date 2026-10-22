@@ -36,3 +36,6 @@ create index if not exists jobs_type_category_idx on public.jobs(type, category)
 alter table public.jobs enable row level security;
 revoke all on public.jobs from anon, authenticated;
 -- service_role bypasses RLS only on the trusted server; never distribute that key.
+
+-- Public image delivery for ads. Uploads are admin-protected by the Edge Function.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types) values ('ad-images', 'ad-images', true, 2000000, array['image/jpeg','image/png','image/webp']) on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
