@@ -57,6 +57,10 @@ function dateLabel(iso){if(!iso)return 'недавно';try{return new Intl.Date
 function emptyState(title,text){return `<div class="empty-state"><div class="empty-symbol">${icon('search')}</div><h3>${safe(title)}</h3><p>${safe(text)}</p></div>`}
 function renderJobs(){
  const candidateMode=state.type==='candidate';
+ const pageTitle=$('.page-heading h1'),pageCopy=$('.page-heading p'),pageEyebrow=$('.page-heading .eyebrow');
+ if(pageTitle)pageTitle.innerHTML=candidateMode?'Исполнители рядом<span class="heading-dot">.</span>':'Работа под твой ритм<span class="heading-dot">.</span>';
+ if(pageCopy)pageCopy.textContent=candidateMode?'Создай резюме и получай подходящие вакансии в Telegram.':'Разовая подработка, постоянная работа и люди для твоих задач.';
+ if(pageEyebrow)pageEyebrow.textContent=candidateMode?'НОВОСИБИРСК / ИСПОЛНИТЕЛИ':'НОВОСИБИРСК / РАБОТА';
  $('#candidate-actions').classList.toggle('hidden',!candidateMode);
  $('#resume-edit').textContent=state.myResume?'Редактировать моё резюме':'Создать резюме';
  if(candidateMode){renderCandidates();renderCategories();renderFilterState();return;}
@@ -156,7 +160,7 @@ function updateUserUI(){let u=state.user;$('#profile-logout').classList.toggle('
 function readSessionToken(){try{const token=localStorage.getItem('shabashka:session')||sessionStorage.getItem('shabashka:session');if(token)localStorage.setItem('shabashka:session',token);sessionStorage.removeItem('shabashka:session');return token}catch{return null}}
 let loginAttempt=0;
 async function startLogin(){
- if(state.initData){await session();if(state.user){switchView(state.user.admin?'admin':'profile');return}}
+ if(state.initData){await session();if(state.user){if(state.resumeWantCreate){state.resumeWantCreate=false;await loadCandidates(true);state.type='candidate';switchView('jobs');openResumeForm()}else switchView(state.user.admin?'admin':'profile');return}}
  if(state.mode==='demo'){toast('Вход доступен на рабочем сайте');return}
  const attempt=++loginAttempt;
  try{
@@ -259,6 +263,7 @@ async function init(){
  window.matchMedia('(min-width:801px)').addEventListener('change',e=>{if(e.matches&&$('#filter-panel').classList.contains('open'))showFilters(false)});
  $('#open-filters').addEventListener('click',()=>showFilters(true));$('#close-filters').addEventListener('click',()=>showFilters(false));$('#apply-filters').addEventListener('click',()=>showFilters(false));$('#filter-backdrop').addEventListener('click',()=>showFilters(false));
  document.addEventListener("change",async e=>{
+ const categoryChoice=e.target.closest('input[name="categories"]');if(categoryChoice){const form=categoryChoice.closest("#resume-form");if(form){const all=form.querySelector('input[name="categories"][value="Все"]');if(categoryChoice.value==="Все"&&categoryChoice.checked)form.querySelectorAll('input[name="categories"]:not([value="Все"])').forEach(x=>x.checked=false);else if(categoryChoice.checked&&all)all.checked=false;}return;}
  const input=e.target.closest("#ad-image-file");if(!input)return;
  const file=input.files?.[0];if(!file)return;
  const form=$("#ad-form");if(!form)return;
