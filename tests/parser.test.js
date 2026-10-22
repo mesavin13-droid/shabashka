@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {parseMessage,getForwardSource,fingerprint} from '../_lib/parser.js';
+import {validateMiniApp} from '../_lib/auth.js';
+import {createHmac} from 'node:crypto';
+test('vacancy extraction',()=>{let p=parseMessage('Завтра нужны 3 грузчика. Ленинский район, 9:00-18:00. Оплата 3500 руб после смены.');assert.equal(p.category,'Склад');assert.equal(p.type,'vacancy');assert.equal(p.pay_amount,3500);assert.equal(p.district,'Ленинский');assert.equal(p.workers_needed,3);assert.match(p.schedule,/Завтра/);});
+test('pay without ruble symbol',()=>{let p=parseMessage('Завтра нужны грузчики, оплата 3500 на руки.');assert.equal(p.pay_amount,3500);});
+test('candidate extraction',()=>{let p=parseMessage('Ищу подработку курьером. Готов работать завтра в Центральном. 4000 ₽');assert.equal(p.type,'candidate');assert.equal(p.category,'Доставка');assert.equal(p.workers_needed,0);});
+test('dedupe fingerprints',()=>{assert.equal(fingerprint('Грузчики  3500 ₽'),fingerprint('грузчики 3500₽'));});
+test('forward origin channel canonical url',()=>{let m={chat:{id:1},message_id:15,forward_origin:{type:'channel',chat:{id:-1005,username:'work_nsk',title:'Работа'},message_id:32}};let v=getForwardSource(m);assert.equal(v.source_url,'https://t.me/work_nsk/32');assert.equal(v.source_key,'channel:-1005:32');});
+test('miniapp auth rejects falsified signature',()=>assert.equal(validateMiniApp('auth_date=1700000000&hash='+ '0'.repeat(64),'foo'),null));
+test('miniapp auth accepts fresh signature',()=>{const token='bot-secret',body=new URLSearchParams({auth_date:String(Math.floor(Date.now()/1000)),user:JSON.stringify({id:123,first_name:'Тест'})});const secret=createHmac('sha256','WebAppData').update(token).digest();const check=createHmac('sha256',secret).update([...body].sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>`${k}=${v}`).join('\n')).digest('hex');body.set('hash',check);assert.equal(validateMiniApp(body.toString(),token).id,123);});

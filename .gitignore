@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+.superdesign/tmp/
+qa-*
+*.tar.gz
+
+supabase/functions/shabashka/api/
+supabase/functions/shabashka/_lib/

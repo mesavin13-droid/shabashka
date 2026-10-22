@@ -1,0 +1,10 @@
+import {mkdir,readFile,writeFile,cp,rm} from 'node:fs/promises';
+const html=await readFile('index.html','utf8');
+const css=await readFile('assets/styles.css','utf8');
+const js=await readFile('assets/app.js','utf8');
+const demo=html.replace('<head>','<head>\n<meta name="app-mode" content="demo">').replace('<script src="https://telegram.org/js/telegram-web-app.js"></script>','');
+await mkdir('dist',{recursive:true});
+await writeFile('dist/index.html',demo);
+await cp('assets','dist/assets',{recursive:true});
+await writeFile('shabashka-demo.html',demo.replace('<link rel="stylesheet" href="./assets/styles.css">',`<style>${css}</style>`).replace('<script defer src="./assets/app.js"></script>','').replace('</body>',`<script>${js}</script></body>`));
+console.log('Built dist/ and standalone shabashka-demo.html');
