@@ -68,3 +68,33 @@
 
 /* Unified Shabashka brand mark */
 .brand{display:flex;align-items:center;gap:10px;padding-left:0}.brand-mark{display:block;width:44px;height:44px;flex:0 0 44px;border-radius:12px}.brand-copy{display:block;font-size:22px;line-height:1;font-weight:850;letter-spacing:-1.2px}.brand-copy>span{font-size:8px;letter-spacing:2px;margin-top:5px;white-space:nowrap}.mobile-brand{display:flex;align-items:center;gap:8px;font-weight:850;letter-spacing:-.5px}.mobile-brand img{width:32px;height:32px;border-radius:9px}.mobile-brand span{display:block}
+
+
+/* Candidate resumes and job-alert preferences */
+.candidate-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;margin:18px 0;border:1px solid #35465d;border-radius:16px;background:linear-gradient(115deg,#1c2b40,#172333)}
+.candidate-actions strong{display:block;color:#eaf2ff;font-size:14px;line-height:1.45}
+.candidate-actions p{font-size:12px;line-height:1.6;color:#aebed3;margin:6px 0 0;max-width:650px}
+.candidate-actions .primary{flex-shrink:0;white-space:nowrap}
+.resume-card .resume-categories{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.resume-tag{display:inline-flex;align-items:center;padding:5px 9px;border:1px solid #3b506b;background:#1b2c42;border-radius:999px;color:#c5d9f4;font-size:10px;line-height:1.3}
+.resume-card .resume-bio{color:#b8c6d8;font-size:12px;line-height:1.65;margin:12px 0;overflow-wrap:anywhere}
+.resume-card .resume-contact-note{font-size:10px;color:#8fa4be}
+.resume-fields{display:grid;gap:14px}
+.resume-fields label{display:grid;gap:7px;font-size:12px;color:#c8d3e4}
+.resume-fields input:not([type=checkbox]),.resume-fields select,.resume-fields textarea{width:100%;min-width:0}
+.resume-fields textarea{min-height:100px;resize:vertical}
+.resume-group{border:1px solid var(--line);border-radius:12px;padding:14px;background:#101824}
+.resume-group legend{padding:0 6px;font-size:12px;color:#cbd8eb;font-weight:700}
+.resume-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.resume-option{display:flex!important;align-items:center;gap:9px;padding:10px 11px;border:1px solid #2c3c51;border-radius:9px;background:#172233;color:#c4d0e0!important;cursor:pointer;min-width:0}
+.resume-option input{width:17px;height:17px;flex-shrink:0;accent-color:#edba3a}
+.resume-option span{font-size:11px;line-height:1.3;overflow-wrap:anywhere}
+.resume-switch{display:flex!important;align-items:flex-start;gap:10px;padding:13px;border:1px solid #34465c;border-radius:11px;background:#151f2d;cursor:pointer}
+.resume-switch input{width:18px;height:18px;flex:0 0 18px;accent-color:#edba3a;margin-top:2px}
+.resume-switch span{display:grid;gap:4px}
+.resume-switch strong{font-size:12px;color:#e0e9f6}
+.resume-switch small{font-size:11px;color:#98abc3;line-height:1.5}
+.resume-form-actions{display:flex;gap:10px;flex-wrap:wrap}
+.resume-form-actions button{flex:1}
+.resume-private-note{padding:11px 13px;border-radius:10px;border:1px solid #7d6639;background:#2a251b;color:#f0d69a;font-size:11px;line-height:1.6;margin-bottom:14px}
+@media(max-width:800px){.candidate-actions{align-items:stretch;flex-direction:column;gap:12px;padding:16px}.candidate-actions .primary{width:100%;justify-content:center}.resume-options{grid-template-columns:1fr}.resume-fields .form-row{grid-template-columns:1fr}.resume-form-actions{display:grid;grid-template-columns:1fr}.resume-card .resume-categories{gap:5px}}
