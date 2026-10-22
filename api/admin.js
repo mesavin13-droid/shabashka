@@ -2,9 +2,11 @@ import process from 'node:process';
 import {json} from '../_lib/http.js';
 import {getDb} from '../_lib/db.js';
 import {requireAdmin} from '../_lib/auth.js';
+import {sendTelegram} from '../_lib/bot.js';
+import {notifyMatchingCandidates} from '../_lib/notify-candidates.js';
 const categories=['Склад','Доставка','Уборка','Стройка','Мероприятия','Общепит','Торговля','Другое'];
 const transitions={approve:['pending','published'],reject:['pending','rejected'],archive:['published','archived'],restore:['archived','published']};
-export function createAdminHandler({database=getDb,env=process.env}={}){return async(req,res)=>{
+export function createAdminHandler({database=getDb,env=process.env,send=sendTelegram}={}){return async(req,res)=>{
  if(!['GET','POST'].includes(req.method))return json(res,405,{error:'Метод не поддерживается'});
  res.setHeader('Cache-Control','no-store');
  let user;try{user=await requireAdmin(req,env)}catch{return json(res,401,{error:'Ошибка авторизации'})}
@@ -41,6 +43,9 @@ export function createAdminHandler({database=getDb,env=process.env}={}){return a
   if(existing.updated_at)query=query.eq('updated_at',existing.updated_at);
   const {data,error}=await query.select('id');if(error)throw error;
   if(!data?.length)return json(res,409,{error:'Объявление уже изменено. Обнови список.'});
+  if(update.status==='published'){
+   try{const {data:publishedJob}=await db.from('jobs').select('*').eq('id',b.id).maybeSingle();if(publishedJob)await notifyMatchingCandidates({database:db,job:publishedJob,send,env})}catch{console.error('Candidate alerts failed after publishing job')}
+  }
   return json(res,200,{ok:true});
  }catch{return json(res,503,{error:'Не удалось сохранить изменения'})}
 }}
