@@ -17,7 +17,8 @@ export function createCandidatesHandler({database=getDb,env=process.env}={}){
   let user=null;try{user=await getIdentity(req,env)}catch{}
   try{
    if(req.method==='GET'){
-    const {data:profiles,error}=await db.from('candidate_profiles').select(publicFields).eq('is_public',true).order('updated_at',{ascending:false}).limit(150);
+    let role=null;if(user?.id){const {data:roleRow,error:roleError}=await db.from('user_roles').select('role').eq('telegram_id',String(user.id)).maybeSingle();if(roleError)throw roleError;role=roleRow?.role||null}
+    const {data:profiles,error}=role==='employer'?await db.from('candidate_profiles').select(publicFields).eq('is_public',true).order('updated_at',{ascending:false}).limit(150):{data:[],error:null};
     if(error)throw error;
     let mine=null;
     if(user?.id){const {data,error:mineError}=await db.from('candidate_profiles').select(ownFields).eq('telegram_id',String(user.id)).maybeSingle();if(mineError)throw mineError;mine=data||null}
