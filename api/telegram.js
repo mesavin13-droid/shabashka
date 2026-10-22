@@ -32,6 +32,20 @@ export function createTelegramHandler({database=getDb,allowedAdmin=isAdmin,send=
    const {data:changed,error}=await db.from('login_challenges').update({telegram_id:String(actor.id),telegram_name:String(actor.first_name||'').slice(0,100),approved_at:new Date().toISOString()}).eq('id',id).is('approved_at',null).select('id');if(error)throw error;
    await answer(cb.id,changed?.length?'Вход подтверждён. Вернись на сайт.':'Уже подтверждено');return json(res,200,{ok:true});
   }
+  if(u.callback_query?.data?.startsWith('role:')){
+   const cb=u.callback_query,role=cb.data.slice(5);
+   if(!['job_seeker','employer'].includes(role)){await answer(cb.id,'Неизвестный тип аккаунта');return json(res,200,{ok:true})}
+   const {error}=await db.from('user_roles').upsert({telegram_id:String(actor.id),role,updated_at:new Date().toISOString()},{onConflict:'telegram_id'});
+   if(error)throw error;
+   await answer(cb.id,'Выбор сохранён');
+   const site=String(env.SITE_URL||'https://shabashka-nsk.vercel.app').replace(/\/$/,'');
+   if(role==='job_seeker'){
+    await send(cb.message?.chat?.id||actor.id,'Ты выбрал «Ищу работу». Заполни резюме на сайте и отметь категории — я буду присылать сюда подходящие новые вакансии.\\n\\nЧтобы изменить роль, отправь /start.',{reply_markup:{inline_keyboard:[[{text:'Заполнить резюме',url:site+'/#profile'}],[{text:'Старт / выбор роли',url:'https://t.me/'+(env.TELEGRAM_BOT_USERNAME||'') }]]}});
+   }else{
+    await send(cb.message?.chat?.id||actor.id,'Ты выбрал «Работодатель». Присылай текст вакансии или фото с подписью — объявление поступит на модерацию. На сайте можно смотреть резюме исполнителей.\\n\\nЧтобы изменить роль, отправь /start.',{reply_markup:{inline_keyboard:[[{text:'Открыть ШАБАШКА',url:site}],[{text:'Задать вопрос · @papadim1',url:'https://t.me/papadim1'}]]}});
+   }
+   return json(res,200,{ok:true});
+  }
   if(u.callback_query){
    if(!admin){await answer(u.callback_query.id,'Только администратор может управлять объявлениями');return json(res,200,{ok:true})}
    const cb=u.callback_query,match=String(cb.data||'').match(/^(approve|reject|archive|restore|edit):([0-9a-f-]{36})$/i);
@@ -52,11 +66,22 @@ export function createTelegramHandler({database=getDb,allowedAdmin=isAdmin,send=
    return json(res,200,{ok:true});
   }
   if(!m)return json(res,200,{ok:true});
-  if(/^\/(?:start|help)(?:@\w+)?(?:\s|$)/i.test(m.text||'')){
-   const text=admin?`Перешли вакансию текстом или фото с подписью. Я определю категорию, оплату, район и описание. ${env.TELEGRAM_AUTO_PUBLISH==='false'?'Объявление попадёт на проверку.':'Твои объявления сразу появятся на сайте.'} Повторы не добавляются. Кнопки в ответе позволяют управлять публикацией. По вопросам: @papadim1.`:'Чтобы разместить вакансию, отправьте сюда текст от 15 до 4000 символов или фото с подписью. Можно переслать готовое объявление.\n\nУкажите, кто нужен, количество людей, дату и часы работы, адрес, оплату и срок выплаты, задачи и контакт для отклика.\n\nВакансия поступит на модерацию. После одобрения она появится на сайте в своей категории.\n\nДля изменения или снятия объявления, рекламы и других вопросов: @papadim1.';
-   const buttons=[[{text:'Задать вопрос · @papadim1',url:'https://t.me/papadim1'}]];
-   if(env.SITE_URL){try{buttons.unshift([{text:'Как разместить вакансию',url:new URL('#about',env.SITE_URL).href}])}catch{}}
-   await send(m.chat.id,text,{reply_markup:{inline_keyboard:buttons}});return json(res,200,{ok:true})
+  if(/^\\/(?:start|help)(?:@\\w+)?(?:\\s|$)/i.test(m.text||'')){
+   const {data:savedRole,error:roleError}=await db.from('user_roles').select('role').eq('telegram_id',String(actor.id)).maybeSingle();
+   if(roleError)throw roleError;
+   const site=String(env.SITE_URL||'https://shabashka-nsk.vercel.app').replace(/\/$/,'');
+   const text=admin?'Привет, администратор! Перешли вакансию текстом или фото с подписью — я обработаю объявление.':savedRole?.role==='job_seeker'?'Ты выбрал роль «Ищу работу». Я пришлю сюда новые вакансии по категориям из твоего резюме.':savedRole?.role==='employer'?'Ты выбрал роль «Работодатель». Присылай вакансию текстом или фото с подписью. После модерации я сообщу результат. На сайте можно смотреть резюме исполнителей.':'Добро пожаловать в ШАБАШКА! Выбери, зачем ты пришёл — я настрою возможности и Telegram-уведомления.';
+   await send(m.chat.id,text,{reply_markup:{inline_keyboard:[
+    [{text:'🔎 Ищу работу',callback_data:'role:job_seeker'},{text:'🧰 Я работодатель',callback_data:'role:employer'}],
+    [{text:'Открыть ШАБАШКА',url:site}],
+    [{text:'Задать вопрос · @papadim1',url:'https://t.me/papadim1'}]
+   ]}});return json(res,200,{ok:true})
+  }
+  if(!admin){
+   const {data:savedRole,error:roleError}=await db.from('user_roles').select('role').eq('telegram_id',String(actor.id)).maybeSingle();
+   if(roleError)throw roleError;
+   if(!savedRole?.role){await send(m.chat.id,'Сначала выбери свою роль:',{reply_markup:{inline_keyboard:[[{text:'🔎 Ищу работу',callback_data:'role:job_seeker'},{text:'🧰 Я работодатель',callback_data:'role:employer'}]]}});return json(res,200,{ok:true})}
+   if(savedRole.role==='job_seeker'){await send(m.chat.id,'Ты выбрал роль «Ищу работу». Заполни резюме и выбери категории на сайте, чтобы получать подходящие вакансии. Отправлять вакансии могут работодатели.',{reply_markup:{inline_keyboard:[[{text:'Заполнить резюме',url:site+'/#profile'}]]}});return json(res,200,{ok:true})}
   }
   let record;try{record=prepareImport(m,actor.id,{autoPublish:admin&&env.TELEGRAM_AUTO_PUBLISH!=='false'})}catch(e){if(e.message!=='TEXT_LENGTH')throw e;await send(m.chat.id,'Пришли текст вакансии от 15 до 4000 символов. Подойдёт и фото с подписью. Фото без текста пока не распознаю.');return json(res,200,{ok:true})}
   const {data:existing,error:lookupError}=await db.from('jobs').select('id,status').or(`source_key.eq.${record.source_key},content_hash.eq.${record.content_hash}`).limit(1);if(lookupError)throw lookupError;
