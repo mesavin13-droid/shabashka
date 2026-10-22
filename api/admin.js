@@ -27,7 +27,8 @@ export function createAdminHandler({database=getDb,env=process.env}={}){return a
    update.status=to;if(to==='published')update.source_allowed=true;
   }else{
    const f=b.fields||{};
-   if(f.is_urgent!==undefined){if(typeof f.is_urgent!=='boolean')return json(res,400,{error:'Некорректное значение срочности'});update.is_urgent=f.is_urgent}\n   for(const [key,max] of Object.entries({title:90,summary:4000,district:60,schedule:120,payment_terms:200})){
+   if(f.is_urgent!==undefined){if(typeof f.is_urgent!=='boolean')return json(res,400,{error:'Некорректное значение срочности'});update.is_urgent=f.is_urgent}
+    for(const [key,max] of Object.entries({title:90,summary:4000,district:60,schedule:120,payment_terms:200})){
     if(f[key]!==undefined){if(typeof f[key]!=='string'||f[key].length>max)return json(res,400,{error:'Проверь длину текстовых полей'});update[key]=f[key].trim()}
    }
    if(f.title!==undefined&&!update.title)return json(res,400,{error:'Название не может быть пустым'});
