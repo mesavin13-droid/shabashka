@@ -16,6 +16,7 @@ export function createCandidatesHandler({database=getDb,env=process.env}={}){
   const db=database();if(!db)return json(res,503,{error:'База данных не настроена'});
   let user=null;try{user=await getIdentity(req,env)}catch{}
   try{
+   if(user?.id){const {data:block,error:blockError}=await db.from('user_blocks').select('telegram_id').eq('telegram_id',String(user.id)).maybeSingle();if(blockError)throw blockError;if(block)return json(res,403,{error:'Доступ к аккаунту ограничен. Напиши администратору @papadim1.'})}
    if(req.method==='GET'){
     let role=null;if(user?.id){const {data:roleRow,error:roleError}=await db.from('user_roles').select('role').eq('telegram_id',String(user.id)).maybeSingle();if(roleError)throw roleError;role=roleRow?.role||null}
     const {data:profiles,error}=role==='employer'?await db.from('candidate_profiles').select(publicFields).eq('is_public',true).order('updated_at',{ascending:false}).limit(150):{data:[],error:null};
