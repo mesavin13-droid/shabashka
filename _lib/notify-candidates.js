@@ -16,7 +16,10 @@ export async function notifyMatchingCandidates({database,job,send=sendTelegram,e
     .select('id,telegram_id,display_name,title,categories')
     .eq('notify_telegram',true).contains('categories',['Все']).limit(500);
   if(allError)throw allError;
-  const profiles=[...(categoryProfiles||[]),...(allProfiles||[])].filter((p,i,a)=>a.findIndex(x=>x.id===p.id)===i);
+  const {data:blockedRows,error:blockedError}=await db.from('user_blocks').select('telegram_id');
+  if(blockedError)throw blockedError;
+  const blockedIds=new Set((blockedRows||[]).map(row=>String(row.telegram_id)));
+  const profiles=[...(categoryProfiles||[]),...(allProfiles||[])].filter((p,i,a)=>a.findIndex(x=>x.id===p.id)===i&&!blockedIds.has(String(p.telegram_id)));
   let sentCount=0;
   const jobId=String(job.id);
   for(const profile of profiles){
