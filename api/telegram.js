@@ -48,7 +48,12 @@ export function createTelegramHandler({database=getDb,allowedAdmin=isAdmin,send=
    return json(res,200,{ok:true});
   }
   if(!m)return json(res,200,{ok:true});
-  if(/^\/(?:start|help)(?:@\w+)?(?:\s|$)/i.test(m.text||'')){await send(m.chat.id,`Перешли сюда вакансию текстом или фото с подписью. Я определю категорию, оплату, район и описание. ${admin&&env.TELEGRAM_AUTO_PUBLISH!=='false'?'Твои объявления сразу появятся на сайте.':'Объявление попадёт на проверку администратору.'} Повторные вакансии не добавляются. После публикации можно снять объявление кнопкой в ответе.`);return json(res,200,{ok:true})}
+  if(/^\/(?:start|help)(?:@\w+)?(?:\s|$)/i.test(m.text||'')){
+   const text=admin?`Перешли вакансию текстом или фото с подписью. Я определю категорию, оплату, район и описание. ${env.TELEGRAM_AUTO_PUBLISH==='false'?'Объявление попадёт на проверку.':'Твои объявления сразу появятся на сайте.'} Повторы не добавляются. Кнопки в ответе позволяют управлять публикацией. По вопросам: @papadim1.`:'Чтобы разместить вакансию, отправьте сюда текст от 15 до 4000 символов или фото с подписью. Можно переслать готовое объявление.\n\nУкажите, кто нужен, количество людей, дату и часы работы, адрес, оплату и срок выплаты, задачи и контакт для отклика.\n\nВакансия поступит на модерацию. После одобрения она появится на сайте в своей категории.\n\nДля изменения или снятия объявления, рекламы и других вопросов: @papadim1.';
+   const buttons=[[{text:'Задать вопрос · @papadim1',url:'https://t.me/papadim1'}]];
+   if(env.SITE_URL){try{buttons.unshift([{text:'Как разместить вакансию',url:new URL('#about',env.SITE_URL).href}])}catch{}}
+   await send(m.chat.id,text,{reply_markup:{inline_keyboard:buttons}});return json(res,200,{ok:true})
+  }
   let record;try{record=prepareImport(m,actor.id,{autoPublish:admin&&env.TELEGRAM_AUTO_PUBLISH!=='false'})}catch(e){if(e.message!=='TEXT_LENGTH')throw e;await send(m.chat.id,'Пришли текст вакансии от 15 до 4000 символов. Подойдёт и фото с подписью. Фото без текста пока не распознаю.');return json(res,200,{ok:true})}
   const {data:existing,error:lookupError}=await db.from('jobs').select('id,status').or(`source_key.eq.${record.source_key},content_hash.eq.${record.content_hash}`).limit(1);if(lookupError)throw lookupError;
   if(existing?.length){
