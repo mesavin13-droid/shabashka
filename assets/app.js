@@ -99,7 +99,7 @@ async function routeFromHash(){const hash=location.hash.slice(1);if(hash.startsW
 
 async function session(){try{let result=await api('/api/session');state.user=result.user;updateUserUI()}catch{state.user=null;updateUserUI()}}
 function updateUserUI(){let u=state.user;$('#profile-logout').classList.toggle('hidden',!u);$$('.admin-link').forEach(el=>el.classList.toggle('show',state.mode==='demo'||!!u?.admin));$('#login-button').classList.toggle('hidden',!!u);$('#avatar-button').classList.toggle('hidden',!u);if(u){$('#avatar-button').textContent=(u.name||'Т').charAt(0).toUpperCase();$('#avatar-button').title=u.admin?'Администратор':'Вошли через Telegram'}else if(state.mode==='live'&&state.view==='admin')switchView('jobs');}
-function readSessionToken(){try{return sessionStorage.getItem('shabashka:session')}catch{return null}}
+function readSessionToken(){try{const token=localStorage.getItem('shabashka:session')||sessionStorage.getItem('shabashka:session');if(token)localStorage.setItem('shabashka:session',token);sessionStorage.removeItem('shabashka:session');return token}catch{return null}}
 let loginAttempt=0;
 async function startLogin(){
  if(state.initData){await session();if(state.user){switchView(state.user.admin?'admin':'profile');return}}
@@ -114,7 +114,7 @@ async function startLogin(){
    if(attempt!==loginAttempt||$('#job-modal').classList.contains('hidden'))return;
    if(Date.now()>end){$('#login-progress').textContent='Время истекло. Закрой окно и нажми «Войти» ещё раз.';return}
    try{const r=await api('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'poll',id:c.id,secret:c.secret})});
-    if(r.token){state.token=r.token;try{sessionStorage.setItem('shabashka:session',r.token)}catch{}await session();if(state.user){closeModal();toast('Вход подтверждён');switchView(state.user.admin?'admin':'profile');return}}
+    if(r.token){state.token=r.token;try{localStorage.setItem('shabashka:session',r.token);sessionStorage.removeItem('shabashka:session')}catch{}await session();if(state.user){closeModal();toast('Вход подтверждён');switchView(state.user.admin?'admin':'profile');return}}
    }catch{if($('#login-progress'))$('#login-progress').textContent='Проверяем подтверждение. Соединение временно недоступно.'}
    setTimeout(poll,2500);
   };setTimeout(poll,1500);
@@ -232,7 +232,7 @@ document.addEventListener('click',async e=>{
  if(e.target.closest('[data-remove-ad-image]')){const form=$('#ad-form');if(form){form.elements.image_url.value='';$('#ad-image-preview-wrap').classList.add('hidden');$('#ad-image-status').textContent='Фото убрано. Нажми «Сохранить баннер», чтобы применить изменение.'}return}
  const filter=e.target.closest('[data-admin-filter]');if(filter){state.adminFilter=filter.dataset.adminFilter;renderAdmin();return}
  if(e.target.closest('[data-refresh-admin]')){await loadAdmin();return}
- if(e.target.closest('[data-logout]')){state.token=null;state.user=null;try{sessionStorage.removeItem('shabashka:session')}catch{}updateUserUI();renderProfile();toast('Вы вышли');return}
+ if(e.target.closest('[data-logout]')){state.token=null;state.user=null;try{localStorage.removeItem('shabashka:session');sessionStorage.removeItem('shabashka:session')}catch{}updateUserUI();renderProfile();toast('Вы вышли');return}
  const act=e.target.closest('[data-admin-action]');if(act){if(act.dataset.adminAction==='edit')editPending(act.dataset.id);else await performAdmin(act.dataset.adminAction,act.dataset.id)}
  });
  document.addEventListener('submit',async e=>{
