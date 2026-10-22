@@ -70,9 +70,9 @@ function renderJobs(){
 async function loadAccountRole(){if(!state.user||state.mode!=='live'){state.role=null;return null}try{const r=await api('/api/role');state.role=r.role||null;updateRoleVisibility();return state.role}catch{return state.role}}
 function updateRoleVisibility(){
  const seeker=state.role==='job_seeker';
- $('.tab[data-type="candidate"]').forEach(el=>{el.classList.toggle('hidden',state.role!=='employer');el.setAttribute('aria-hidden',String(state.role!=='employer'))});
- $('[data-view="employer"]').forEach(el=>el.classList.toggle('hidden',state.role!=='employer'));
- $('[data-create]').forEach(el=>{if(el.id!=='mobile-create-button')el.classList.toggle('hidden',seeker)});
+ $$('.tab[data-type="candidate"]').forEach(el=>{el.classList.toggle('hidden',state.role!=='employer');el.setAttribute('aria-hidden',String(state.role!=='employer'))});
+ $$('[data-view="employer"]').forEach(el=>el.classList.toggle('hidden',state.role!=='employer'));
+ $$('[data-create]').forEach(el=>{if(el.id!=='mobile-create-button')el.classList.toggle('hidden',seeker)});
  const mobile=$('#mobile-create-button');
  if(mobile){
   mobile.classList.toggle('resume-nav',seeker);
@@ -149,7 +149,7 @@ function renderAdmin(){
 }
 function setAdminSection(section){
  state.adminSection=section==='users'?'users':'jobs';
- $('[data-admin-section]').forEach(el=>{const active=el.dataset.adminSection===state.adminSection;el.classList.toggle('active',active);el.setAttribute('aria-pressed',String(active))});
+ $$('[data-admin-section]').forEach(el=>{const active=el.dataset.adminSection===state.adminSection;el.classList.toggle('active',active);el.setAttribute('aria-pressed',String(active))});
  ['#admin-filters','#admin-list','[data-refresh-admin]','.ad-settings'].forEach(sel=>$(sel)?.classList.toggle('hidden',state.adminSection!=='jobs'));
  $('#admin-users-panel')?.classList.toggle('hidden',state.adminSection!=='users');
  if(state.adminSection==='users')renderAdminUsers();
