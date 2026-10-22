@@ -19,6 +19,7 @@ export function createTelegramHandler({database=getDb,allowedAdmin=isAdmin,send=
   const admin=allowedAdmin(actor.id);
   if(m&&m.chat?.type!=='private')return json(res,200,{ok:true});
   const db=database();if(!db)return json(res,503,{error:'База не настроена'});
+  if(!admin){const {data:block,error:blockError}=await db.from('user_blocks').select('telegram_id,reason').eq('telegram_id',String(actor.id)).maybeSingle();if(blockError)throw blockError;if(block){const message='Доступ к ШАБАШКА ограничен. По вопросам обратись к администратору @papadim1.';if(m)await send(m.chat.id,message);else if(u.callback_query)await answer(u.callback_query.id,'Доступ ограничен');return json(res,200,{ok:true,blocked:true})}}
   const loginStart=m?.text?.match(/^\/start(?:@\w+)? login_([0-9a-f-]{36})$/i);
   if(loginStart){
    const {data:c,error}=await db.from('login_challenges').select('id,code,expires_at,consumed_at').eq('id',loginStart[1]).single();
