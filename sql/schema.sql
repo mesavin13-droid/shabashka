@@ -15,7 +15,7 @@ create table if not exists public.jobs (
   schedule text,
   work_date date,
   workers_needed integer not null default 1 check (workers_needed between 0 and 99),
-  payment_terms text,
+  payment_terms text,\n  is_urgent boolean not null default false,
   sent_at timestamptz,
   source_name text,
   source_username text,

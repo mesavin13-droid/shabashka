@@ -1,7 +1,7 @@
 import {json,onlyMethod} from '../_lib/http.js';
 import {getDb} from '../_lib/db.js';
 import {demoJobs} from '../_lib/demo.js';
-const fields='id,title,type,category,summary,district,city,pay_amount,pay_unit,schedule,work_date,workers_needed,payment_terms,source_name,source_url,created_at';
+const fields='id,title,type,category,summary,district,city,pay_amount,pay_unit,schedule,work_date,workers_needed,payment_terms,source_name,source_url,is_urgent,created_at';
 export function createJobsHandler({database=getDb}={}){return async function handler(req,res){
  if(!onlyMethod(req,res,'GET'))return;
  const id=req.query?.id;
