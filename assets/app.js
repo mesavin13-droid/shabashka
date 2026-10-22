@@ -158,6 +158,7 @@ function setAdminSection(section){
 function renderAdminUsers(){
  const root=$('#admin-users-list');if(!root)return;
  const users=state.adminUsers||[];
+ const usersTab=$('[data-admin-section="users"]');if(usersTab)usersTab.textContent=`Пользователи и резюме (${users.length})`;
  root.innerHTML=users.length?users.map(u=>{
   const roleName=u.role==='employer'?'Работодатель':u.role==='job_seeker'?'Ищет работу':'Роль не выбрана';
   const resume=u.resume;
@@ -296,12 +297,10 @@ function openEntryAd(a){
  $('#job-modal').classList.remove('hidden');document.body.style.overflow='hidden';activateModal();return true;
 }
 async function showEntryAd(){
- if(state.mode!=='live'||state.user?.admin||state.view!=='jobs'||!$('#job-modal').classList.contains('hidden'))return;
+ if(state.mode!=='live'||!$('#job-modal').classList.contains('hidden'))return;
  try{
-  const r=await api('/api/ads');if(!r.ad||state.view!=='jobs'||!$('#job-modal').classList.contains('hidden'))return;
-  const key='shabashka:ad:'+r.ad.id+':'+r.ad.updated_at;
-  try{if(sessionStorage.getItem(key))return}catch{}
-  if(openEntryAd(r.ad)){try{sessionStorage.setItem(key,'shown')}catch{}}
+  const r=await api('/api/ads');if(!r.ad||!$('#job-modal').classList.contains('hidden'))return;
+  openEntryAd(r.ad);
  }catch{/* Advertising availability must not prevent access to jobs. */}
 }
 async function init(){
@@ -350,7 +349,8 @@ document.addEventListener('click',async e=>{
  const confirm=e.target.closest('[data-confirm-delete]');if(confirm){state.drafts=state.drafts.filter(d=>d.id!==confirm.dataset.confirmDelete);saveLocal('shabashka:drafts',state.drafts);closeModal();renderDrafts();toast('Черновик удалён');return}
  if(e.target.closest('[data-preview-ad]')){const form=$('#ad-form');if(form?.reportValidity())openEntryAd(adFormData(form));return}
  if(e.target.closest('[data-remove-ad-image]')){const form=$('#ad-form');if(form){form.elements.image_url.value='';$('#ad-image-preview-wrap').classList.add('hidden');$('#ad-image-status').textContent='Фото убрано. Нажми «Сохранить баннер», чтобы применить изменение.'}return}
- const adminSection=e.target.closest('[data-admin-section]');if(adminSection){setAdminSection(adminSection.dataset.adminSection);return}
+ const adminSection=e.target.closest('[data-admin-section]');if(adminSection){setAdminSection(adminSection.dataset.adminSection);if(adminSection.dataset.adminSection==='users'&&state.mode==='live')await loadAdmin();return}
+ if(e.target.closest('[data-refresh-admin-users]')){await loadAdmin();toast('Список пользователей обновлён');return}
  const userAction=e.target.closest('[data-user-action]');if(userAction){await performAdminUser(userAction.dataset.userAction,userAction.dataset.userId);return}
  const filter=e.target.closest('[data-admin-filter]');if(filter){state.adminFilter=filter.dataset.adminFilter;renderAdmin();return}
  if(e.target.closest('[data-refresh-admin]')){await loadAdmin();return}
