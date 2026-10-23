@@ -45,10 +45,19 @@ export function createApplicationsHandler({database=getDb,env=process.env,send=s
      if(ownedError)throw ownedError;
      const jobList=owned||[],ids=jobList.map(j=>j.id);
      if(!ids.length)return json(res,200,{applications:[],jobs:jobList});
-     const {data:apps,error:appsError}=await db.from('job_applications').select('id,job_id,applicant_telegram_id,applicant_name,status,created_at,updated_at').in('job_id',ids).order('created_at',{ascending:false}).limit(300);
-     if(appsError)throw appsError;
-     const byId=new Map(jobList.map(j=>[j.id,j]));
-     return json(res,200,{applications:(apps||[]).map(a=>({...a,job:byId.get(a.job_id)||null})),jobs:jobList});
+     const [appsResult,statsResult]=await Promise.all([
+      db.from('job_applications').select('id,job_id,applicant_telegram_id,applicant_name,status,created_at,updated_at').in('job_id',ids).order('created_at',{ascending:false}).limit(300),
+      db.from('job_stats').select('job_id,views,unique_views').in('job_id',ids)
+     ]);
+     if(appsResult.error)throw appsResult.error;
+     if(statsResult.error)throw statsResult.error;
+     const apps=appsResult.data||[],stats=statsResult.data||[];
+     const statsById=new Map(stats.map(s=>[s.job_id,s]));
+     const applicationCounts=new Map();
+     for(const a of apps){if(a.status!=='withdrawn')applicationCounts.set(a.job_id,(applicationCounts.get(a.job_id)||0)+1)}
+     const jobsWithStats=jobList.map(j=>{const s=statsById.get(j.id);return {...j,views:Number(s?.views)||0,unique_views:Number(s?.unique_views)||0,applications_count:applicationCounts.get(j.id)||0}});
+     const byId=new Map(jobsWithStats.map(j=>[j.id,j]));
+     return json(res,200,{applications:apps.map(a=>({...a,job:byId.get(a.job_id)||null})),jobs:jobsWithStats});
     }
     return json(res,400,{error:'Неизвестный вид списка'});
    }
