@@ -169,3 +169,26 @@
  .job-open{padding:7px 8px}
  .priority-badge{font-size:8px}
 }
+
+/* Final compact catalogue pass */
+.brand{display:flex;align-items:center;gap:10px;padding-left:2px;font-size:22px;letter-spacing:-.8px;line-height:1.1}
+.brand-mark{width:42px;height:42px;display:block;flex:0 0 42px}
+.brand-copy{display:block}
+.brand-copy span{font-size:8px;letter-spacing:2.2px;margin-top:5px}
+.mobile-brand{align-items:center;gap:8px;font-weight:800;letter-spacing:-.5px}
+.mobile-brand img{width:30px;height:30px;display:block}
+@media(max-width:800px){
+ .job-card{padding:11px 12px}
+ .job-top{min-height:29px}
+ .source-tag{font-size:9px;max-width:calc(100% - 76px)}
+ .job-top-actions .bookmark-btn{width:29px;height:29px;flex-basis:29px}
+ .job-card h3{font-size:16px;line-height:1.25;margin:3px 0 5px}
+ .job-meta{font-size:10px}
+ .price-row{margin:9px 0 9px}
+ .price{font-size:21px}
+ .job-details{margin:8px 0;gap:6px 12px;font-size:10px}
+ .job-foot{gap:7px}
+ .job-date{font-size:9px}
+ .job-open{padding:6px 8px;font-size:10px}
+ .cards-grid{gap:8px}
+}
