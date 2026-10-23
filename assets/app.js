@@ -41,11 +41,11 @@ const fallbackPending=[
 {id:'demo-p1',title:'Нужны 2 разнорабочих',type:'vacancy',category:'Стройка',pay_amount:3000,district:'Ленинский',schedule:'Завтра · 9:00',workers_needed:2,source_name:'Подработка НСК',source_allowed:false,raw_text:'Завтра нужны 2 разнорабочих в Ленинском районе. 3000 рублей за смену. Писать в личку.',demo:true},
 {id:'demo-p2',title:'Курьер на завтра',type:'vacancy',category:'Доставка',pay_amount:3500,district:'Центральный',schedule:'Завтра',workers_needed:1,source_name:'Канал с разрешением',source_allowed:true,raw_text:'Курьер на завтра центр Новосибирска оплата 3500 после смены',demo:true}
 ];
-const state={mode:'demo',config:{botUsername:'shabashkanskbot'},jobs:[],profiles:[],myResume:null,role:null,resumeWantCreate:false,pending:[],adminUsers:[],adminSection:'jobs',ad:null,adminFilter:'pending',date:'',minPay:'',sort:'new',drafts:readLocal('shabashka:drafts',[]).filter(x=>x&&typeof x==='object'&&typeof x.id==='string'),pendingLoaded:false,view:'jobs',type:'vacancy',category:'Все',query:'',district:'',favorites:new Set(readLocal('shabashka:favorites',[]).filter(x=>typeof x==='string')),token:readSessionToken(),initData:window.Telegram?.WebApp?.initData||'',user:null};
+const state={mode:'demo',config:{botUsername:'shabashkanskbot'},jobs:[],profiles:[],myResume:null,myApplications:[],receivedApplications:[],role:null,resumeWantCreate:false,pending:[],adminUsers:[],adminSection:'jobs',ad:null,adminFilter:'pending',date:'',minPay:'',sort:'new',drafts:readLocal('shabashka:drafts',[]).filter(x=>x&&typeof x==='object'&&typeof x.id==='string'),pendingLoaded:false,view:'jobs',type:'vacancy',category:'Все',query:'',district:'',favorites:new Set(readLocal('shabashka:favorites',[]).filter(x=>typeof x==='string')),token:readSessionToken(),initData:window.Telegram?.WebApp?.initData||'',user:null};
 let toastTimer;
 function toast(message){const el=$('#toast');el.textContent=message;el.classList.remove('hidden');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.add('hidden'),3300)}
 async function api(url,options={}){const headers={...options.headers};if(state.token)headers.Authorization=`Bearer ${state.token}`;if(state.initData)headers['x-telegram-init-data']=state.initData;const backend=document.querySelector('meta[name="api-base"]')?.content||'';const endpoint=backend&&url.startsWith('/api/')?backend+url.slice(4):url;const res=await fetch(endpoint,{...options,headers});let body=await res.json().catch(()=>({}));if(!res.ok)throw new Error(body.error||'Сервис временно недоступен');return body;}
-function switchView(v){if(!['jobs','favorites','employer','profile','about','admin'].includes(v))v='jobs';if(v==='admin'&&state.mode==='live'&&!state.user?.admin){toast('Панель доступна только администратору');return;}if(v==='employer'&&state.role==='job_seeker'){toast('Размещение вакансий доступно работодателям');v='jobs';}state.view=v;$$('.view').forEach(n=>n.classList.toggle('hidden',n.id!==`view-${v}`));$$('[data-view]').forEach(n=>{const active=n.dataset.view===v;n.classList.toggle('active',active);if(n.closest('nav')){if(active)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current')}});history.replaceState(null,'',`#${v}`);window.scrollTo({top:0,behavior:'instant'});if(v==='favorites')renderFavorites();if(v==='admin')loadAdmin();if(v==='employer')renderDrafts();if(v==='profile')renderProfile();if(v==='jobs')renderJobs();}
+function switchView(v){if(!['jobs','favorites','employer','profile','about','admin'].includes(v))v='jobs';if(v==='admin'&&state.mode==='live'&&!state.user?.admin){toast('Панель доступна только администратору');return;}if(v==='employer'&&state.role==='job_seeker'){toast('Размещение вакансий доступно работодателям');v='jobs';}state.view=v;$$('.view').forEach(n=>n.classList.toggle('hidden',n.id!==`view-${v}`));$$('[data-view]').forEach(n=>{const active=n.dataset.view===v;n.classList.toggle('active',active);if(n.closest('nav')){if(active)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current')}});history.replaceState(null,'',`#${v}`);window.scrollTo({top:0,behavior:'instant'});if(v==='favorites')renderFavorites();if(v==='admin')loadAdmin();if(v==='employer'){renderDrafts();loadApplications('received')}if(v==='profile'){renderProfile();loadApplications('mine')}if(v==='jobs')renderJobs();}
 function urgency(j){const text=`${j.title||''} ${j.summary||''} ${j.schedule||''} ${j.raw_text||''}`;if(j.is_urgent===true||/срочн|сейчас/i.test(text))return 'urgent';if(/ближайш/i.test(text))return 'nearest';return ''}
 function urgencyBadge(j){const level=urgency(j);return level?`<span class="priority-badge ${level}">${level==='urgent'?'⚡ СРОЧНО':'🔥 БЛИЖАЙШЕЕ'}</span>`:''}
 function shownJobs(){const result=state.jobs.filter(j=>(state.type==='all'||j.type===state.type)&&(state.category==='Все'||j.category===state.category)&&(!state.district||j.district===state.district)&&(!state.minPay||(j.pay_amount!=null&&Number(j.pay_amount)>=Number(state.minPay)))&&matchesDate(j,state.date)&&(!state.query||`${j.title} ${j.category} ${j.district||''} ${j.summary||''}`.toLowerCase().includes(state.query.toLowerCase())));return result.sort((a,b)=>{const priority=({urgent:0,nearest:1,'':2}[urgency(a)]-({urgent:0,nearest:1,'':2}[urgency(b)]));if(priority)return priority;return state.sort==='pay'?(b.pay_amount??-1)-(a.pay_amount??-1):new Date(b.created_at||0)-new Date(a.created_at||0)});}
@@ -90,6 +90,40 @@ async function loadCandidates(silent=true){
  try{const r=await api('/api/candidates');state.profiles=Array.isArray(r.profiles)?r.profiles:[];state.myResume=r.mine||null;if(state.type==='candidate')renderJobs();}
  catch(e){if(!silent)toast('Не удалось загрузить резюме. Попробуй обновить список.');}
 }
+
+const applicationStatusNames={new:'Новый',viewed:'Просмотрен',suitable:'Подходит',rejected:'Отклонён',hired:'Нанят',withdrawn:'Отозван'};
+function applicationStatusBadge(status){return `<span class="application-status status-${safe(status)}">${safe(applicationStatusNames[status]||status||'Неизвестно')}</span>`;}
+function renderMyApplications(){
+ const el=$('#my-applications');if(!el)return;
+ const items=state.myApplications||[];
+ el.innerHTML=items.length?items.map(a=>{const j=a.job||{},original=goodLink(j.source_url);return `<article class="draft-card"><div class="draft-status"><span class="draft-label">Мой отклик</span>${applicationStatusBadge(a.status)}</div><h3>${safe(j.title||'Вакансия')}</h3><p>${safe(j.district||'Район не указан')} · ${money(j.pay_amount)}${j.pay_unit?` / ${safe(j.pay_unit)}`:''}</p><div class="admin-actions">${original?`<a href="${safe(original)}" target="_blank" rel="noopener noreferrer">Открыть оригинал ↗</a>`:''}</div></article>`}).join(''):emptyState('Пока нет откликов','Открой вакансию и нажми «Откликнуться», чтобы отправить заявку работодателю.');
+}
+function renderReceivedApplications(){
+ const el=$('#received-applications');if(!el)return;
+ const items=state.receivedApplications||[];
+ el.innerHTML=items.length?items.map(a=>{const j=a.job||{};return `<article class="draft-card"><div class="draft-status"><span class="draft-label">${safe(applicationStatusNames[a.status]||a.status)}</span><span class="job-date">${dateLabel(a.created_at)}</span></div><h3>${safe(j.title||'Вакансия')}</h3><p>Соискатель: <strong>${safe(a.applicant_name||'Соискатель')}</strong></p><p class="form-note">Telegram ID: ${safe(a.applicant_telegram_id)}</p><div class="admin-actions">${a.status==='new'?`<button data-application-status="viewed" data-application-id="${safe(a.id)}">Отметить просмотренным</button>`:''}<button data-application-status="suitable" data-application-id="${safe(a.id)}">Подходит</button><button data-application-status="rejected" data-application-id="${safe(a.id)}">Отказать</button><button data-application-status="hired" data-application-id="${safe(a.id)}">Нанят</button></div></article>`}).join(''):emptyState('Пока нет откликов','Когда соискатель откликнется на твою вакансию, заявка появится здесь.');
+}
+async function loadApplications(view='mine',silent=true){
+ if(state.mode!=='live')return;
+ const target=view==='received'?'#received-applications':'#my-applications',el=$(target);
+ if(!state.user){if(el)el.innerHTML=emptyState('Войди через Telegram','После входа здесь появятся твои отклики.');return}
+ try{
+  const r=await api('/api/applications?view='+encodeURIComponent(view));
+  if(view==='received'){state.receivedApplications=Array.isArray(r.applications)?r.applications:[];renderReceivedApplications()}
+  else{state.myApplications=Array.isArray(r.applications)?r.applications:[];renderMyApplications()}
+ }catch(e){
+  if(el)el.innerHTML=emptyState('Не удалось загрузить отклики','Нажми «Обновить», чтобы попробовать ещё раз.');
+  if(!silent)toast(e.message||'Не удалось загрузить отклики');
+ }
+}
+async function changeApplicationStatus(applicationId,status,button){
+ button.disabled=true;
+ try{
+  await api('/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',application_id:applicationId,status})});
+  await loadApplications('received',true);toast('Статус отклика обновлён');
+ }catch(e){button.disabled=false;toast(e.message||'Не удалось изменить статус')}
+}
+
 function resumeCard(p,mine=false){
  const cats=(p.categories||[]).map(x=>`<span class="resume-tag">${safe(x)}</span>`).join('');
  const areas=(p.districts||[]).length?(p.districts||[]).join(', '):'Все районы';
@@ -135,8 +169,23 @@ function plural(n,variants){n=Math.abs(n)%100;let m=n%10;return n>10&&n<20?varia
 function renderFavorites(){const jobs=state.jobs.filter(j=>state.favorites.has(String(j.id)));$('#favorites-grid').innerHTML=jobs.length?jobs.map(jobCard).join(''):emptyState('Пока ничего не сохранено','Нажимай значок закладки на интересных объявлениях, чтобы вернуться к ним позже.');}
 // Candidate resume UI is rendered beside vacancy listings.
 function findJob(id){return [...state.jobs,...state.pending].find(j=>String(j.id)===String(id));}
-function openJob(id){let j=findJob(id);if(!j)return;let link=goodLink(j.source_url);$('#modal-content').innerHTML=`<span class="modal-tag">${safe(j.type==='candidate'?'Соискатель':'Предложение работы')} · ${safe(j.category)}</span><h2 id="modal-title">${safe(j.title)}</h2><div class="modal-pay">${money(j.pay_amount)} ${j.pay_amount!=null?`<small>/ ${safe(j.pay_unit||'смена')}</small>`:''}</div><div class="modal-grid"><div class="modal-tile"><small>РАЙОН</small>${safe(j.district||'Не указан')}</div><div class="modal-tile"><small>ВРЕМЯ</small>${safe(j.schedule||'Уточняется')}</div><div class="modal-tile"><small>НУЖНО ЛЮДЕЙ</small>${j.type==='candidate'?'—':safe(j.workers_needed||1)}</div><div class="modal-tile"><small>КОГДА ВЫПЛАТА</small>${safe(j.payment_terms||'В объявлении не указано')}</div></div><div class="modal-description">${safe(j.summary||'Описание пока не указано')}</div><div class="modal-actions">${state.user?.admin?`<button data-admin-action="edit" data-id="${safe(j.id)}">Редактировать</button>`:''}${link?`<a href="${safe(link)}" target="_blank" rel="noopener noreferrer">Открыть оригинал ${icon('external-link')}</a>`:`<button disabled style="opacity:.5;cursor:default">Нет ссылки на источник</button>`}<button class="secondary" aria-pressed="${state.favorites.has(String(j.id))}" data-fav="${safe(j.id)}">${icon('bookmark')} ${state.favorites.has(String(j.id))?'Сохранено':'В избранное'}</button></div><p class="modal-disclaimer">${j.demo?'Это демонстрационная вакансия — не реальное предложение работы.':'Проверьте актуальность объявления и условия оплаты напрямую у источника. Площадка не подтверждает личность работодателя.'}</p>`;$('#job-modal').classList.remove('hidden');document.body.style.overflow='hidden';activateModal();}
+function openJob(id){let j=findJob(id);if(!j)return;let link=goodLink(j.source_url);$('#modal-content').innerHTML=`<span class="modal-tag">${safe(j.type==='candidate'?'Соискатель':'Предложение работы')} · ${safe(j.category)}</span><h2 id="modal-title">${safe(j.title)}</h2><div class="modal-pay">${money(j.pay_amount)} ${j.pay_amount!=null?`<small>/ ${safe(j.pay_unit||'смена')}</small>`:''}</div><div class="modal-grid"><div class="modal-tile"><small>РАЙОН</small>${safe(j.district||'Не указан')}</div><div class="modal-tile"><small>ВРЕМЯ</small>${safe(j.schedule||'Уточняется')}</div><div class="modal-tile"><small>НУЖНО ЛЮДЕЙ</small>${j.type==='candidate'?'—':safe(j.workers_needed||1)}</div><div class="modal-tile"><small>КОГДА ВЫПЛАТА</small>${safe(j.payment_terms||'В объявлении не указано')}</div></div><div class="modal-description">${safe(j.summary||'Описание пока не указано')}</div><div class="modal-actions">${state.user?.admin?`<button data-admin-action="edit" data-id="${safe(j.id)}">Редактировать</button>`:''}${j.type==='vacancy'&&!j.demo&&state.mode==='live'&&state.role!=='employer'&&!state.user?.admin?`<button class='primary application-button' type='button' data-apply-job='${safe(j.id)}'>${state.user?'Откликнуться':'Войти и откликнуться'}</button>`:''}${link?`<a href="${safe(link)}" target="_blank" rel="noopener noreferrer">Открыть оригинал ${icon('external-link')}</a>`:`<button disabled style="opacity:.5;cursor:default">Нет ссылки на источник</button>`}<button class="secondary" aria-pressed="${state.favorites.has(String(j.id))}" data-fav="${safe(j.id)}">${icon('bookmark')} ${state.favorites.has(String(j.id))?'Сохранено':'В избранное'}</button></div><p class="modal-disclaimer">${j.demo?'Это демонстрационная вакансия — не реальное предложение работы.':'Проверьте актуальность объявления и условия оплаты напрямую у источника. Площадка не подтверждает личность работодателя.'}</p>`;$('#job-modal').classList.remove('hidden');document.body.style.overflow='hidden';activateModal();}
 function closeModal(){loginAttempt++;if(location.hash.startsWith('#job='))history.replaceState(null,'','#jobs');$('#job-modal').classList.add('hidden');document.body.style.overflow='';if(lastFocus?.isConnected)lastFocus.focus();}
+
+async function submitApplication(jobId,button){
+ if(state.mode!=='live'){toast('Отклики доступны на рабочем сайте');return}
+ if(!state.user){toast('Сначала войди через Telegram');await startLogin();return}
+ if(!state.role){openRoleChooser();return}
+ if(state.role!=='job_seeker'){toast('Откликаться могут только соискатели');return}
+ const original=button.textContent;button.disabled=true;button.textContent='Отправляем…';
+ try{
+  const r=await api('/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'apply',job_id:jobId})});
+  if(r.alreadyApplied){button.textContent='Уже откликался';toast('Ты уже откликался на эту вакансию')}
+  else{button.textContent='Отклик отправлен';toast('Отклик сохранён. Можешь также открыть оригинал объявления.')}
+  await loadApplications('mine',true);
+ }catch(e){button.disabled=false;button.textContent=original;toast(e.message||'Не удалось отправить отклик')}
+}
+
 function toggleFav(id){if(state.favorites.has(id)){state.favorites.delete(id);toast('Убрано из избранного')}else{state.favorites.add(id);toast('Сохранено в избранное')}saveLocal('shabashka:favorites',[...state.favorites]);renderJobs();if(state.view==='favorites')renderFavorites();}
 const statusNames={pending:'На проверке',published:'Опубликовано',archived:'Снято с сайта',rejected:'Отклонено'};
 function renderAdmin(){
@@ -315,6 +364,8 @@ async function init(){
  $('#hero-search').addEventListener('click',()=>{$('#search-input').focus();renderJobs()});
  $('#login-button').addEventListener('click',startLogin);$('#profile-login').addEventListener('click',startLogin);$('#avatar-button').addEventListener('click',()=>switchView('profile'));
  $('#tip-bot').addEventListener('click',()=>window.open(`https://t.me/${state.config.botUsername||'shabashkanskbot'}`,'_blank','noopener,noreferrer'));
+ $('#refresh-received-applications').addEventListener('click',()=>loadApplications('received',false));
+ $('#refresh-my-applications').addEventListener('click',()=>loadApplications('mine',false));
  window.matchMedia('(min-width:801px)').addEventListener('change',e=>{if(e.matches&&$('#filter-panel').classList.contains('open'))showFilters(false)});
  $('#open-filters').addEventListener('click',()=>showFilters(true));$('#close-filters').addEventListener('click',()=>showFilters(false));$('#apply-filters').addEventListener('click',()=>showFilters(false));$('#filter-backdrop').addEventListener('click',()=>showFilters(false));
  document.addEventListener("change",async e=>{
@@ -334,8 +385,10 @@ document.addEventListener('click',async e=>{
  const cat=e.target.closest('[data-cat]');if(cat){state.category=cat.dataset.cat;renderJobs();return}
  const remove=e.target.closest('[data-remove-filter]');if(remove){const key=remove.dataset.removeFilter;state[key]=key==='category'?'Все':'';if(key==='district')$('#district-filter').value='';if(key==='date')$('#date-filter').value='';if(key==='minPay')$('#pay-filter').value='';renderJobs();return}
  const fav=e.target.closest('[data-fav]');if(fav){toggleFav(fav.dataset.fav);if(!$('#job-modal').classList.contains('hidden')&&$('#job-modal [data-fav]')){const b=$('#job-modal [data-fav]');b.innerHTML=icon('bookmark')+(state.favorites.has(fav.dataset.fav)?' Сохранено':' В избранное');b.setAttribute('aria-pressed',String(state.favorites.has(fav.dataset.fav)))}return}
+ const apply=e.target.closest('[data-apply-job]');if(apply){await submitApplication(apply.dataset.applyJob,apply);return}
  const open=e.target.closest('[data-open]');if(open){openJob(open.dataset.open);return}
  if(e.target.closest('[data-close]')){closeModal();return}
+ const applicationStatus=e.target.closest('[data-application-status]');if(applicationStatus){await changeApplicationStatus(applicationStatus.dataset.applicationId,applicationStatus.dataset.applicationStatus,applicationStatus);return}
  const roleChoice=e.target.closest('[data-role-choice]');if(roleChoice){await saveAccountRole(roleChoice.dataset.roleChoice);return}
  if(e.target.closest('#profile-change-role')){openRoleChooser();return}
  if(e.target.closest('[data-resume-action]')){openResumeForm();return}
