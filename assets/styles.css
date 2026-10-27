@@ -192,3 +192,11 @@
  .job-open{padding:6px 8px;font-size:10px}
  .cards-grid{gap:8px}
 }
+/* Closed vacancy state: gray card, subtle crossed lines, and explicit status. */
+.job-card.is-closed{filter:grayscale(.78);opacity:.72;border-color:#424c5c!important;box-shadow:none!important;background:#131720}
+.job-card.is-closed::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;background:linear-gradient(145deg,transparent calc(50% - 1px),rgba(173,184,200,.28) 50%,transparent calc(50% + 1px)),linear-gradient(35deg,transparent calc(50% - 1px),rgba(173,184,200,.24) 50%,transparent calc(50% + 1px))}
+.job-card.is-closed>*{position:relative;z-index:2}
+.job-card.is-closed h3 .job-title-button{text-decoration:line-through;text-decoration-color:#818b9b;text-decoration-thickness:1px}
+.closed-badge{display:inline-flex;align-items:center;gap:4px;background:#282f3a;border:1px solid #505b6b;color:#c3ccd8;border-radius:6px;padding:4px 6px;font-size:9px;font-weight:800;white-space:nowrap}
+.closed-vacancy-notice{margin-top:16px;padding:12px 14px;border:1px solid #4a5565;border-radius:8px;background:#202632;color:#c3ccd8;font-size:12px;line-height:1.6}
+.admin-card.is-closed{filter:grayscale(.8);opacity:.75;box-shadow:none}
