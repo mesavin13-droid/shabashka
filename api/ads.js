@@ -26,22 +26,23 @@ export function validateAd(fields){
  return ad;
 }
 const publicFields='id,enabled,title,body,button_text,target_url,image_url,advertiser,erid,starts_at,ends_at,updated_at';
+const adminFields=publicFields+',campaign_id';
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 async function recordAdEvent(req,res,db){
  const body=req.body||{},eventType=body.event_type,sessionId=String(body.session_id||'');
  if(!['impression','click'].includes(eventType)||!UUID.test(sessionId))return json(res,400,{error:'Некорректное событие рекламы'});
- const {data:ad,error:adError}=await db.from('advertisements').select('id,enabled,starts_at,ends_at').eq('id',1).maybeSingle();
+ const {data:ad,error:adError}=await db.from('advertisements').select('id,campaign_id,enabled,starts_at,ends_at').eq('id',1).maybeSingle();
  if(adError)throw adError;
  if(!ad)return json(res,404,{error:'Баннер не найден'});
  if(eventType==='impression'&&!activeAd(ad))return json(res,409,{error:'Баннер не активен'});
- const {error}=await db.from('advertisement_events').insert({ad_id:ad.id,event_type:eventType,session_id:sessionId});
+ const {error}=await db.from('advertisement_events').insert({ad_id:ad.id,campaign_id:ad.campaign_id,event_type:eventType,session_id:sessionId});
  if(error?.code==='23505'&&eventType==='impression')return json(res,200,{ok:true,duplicate:true});
  if(error)throw error;
  return json(res,200,{ok:true});
 }
-async function getAdStatistics(db,adId){
+async function getAdStatistics(db,adId,campaignId){
  const since=new Date(Date.now()-30*24*60*60*1000).toISOString();
- const count=(type,from)=>{let q=db.from('advertisement_events').select('id',{count:'exact',head:true}).eq('ad_id',adId).eq('event_type',type);if(from)q=q.gte('created_at',from);return q};
+ const count=(type,from)=>{let q=db.from('advertisement_events').select('id',{count:'exact',head:true}).eq('ad_id',adId).eq('campaign_id',campaignId).eq('event_type',type);if(from)q=q.gte('created_at',from);return q};
  const results=await Promise.all([count('impression'),count('click'),count('impression',since),count('click',since)]);
  for(const r of results)if(r.error)throw r.error;
  const [impressions,clicks,last30Impressions,last30Clicks]=results.map(r=>Number(r.count)||0);
@@ -76,13 +77,17 @@ export function createAdsHandler({database=getDb,env=process.env}={}){return asy
  try{
   if(tracking){if(req.method!=='POST')return json(res,405,{error:'Метод не поддерживается'});return await recordAdEvent(req,res,db)}
   if(req.method==='GET'){
-   const {data,error}=await db.from('advertisements').select(publicFields).eq('id',1).single();if(error)throw error;
-   if(manage){const stats=await getAdStatistics(db,data.id);return json(res,200,{ad:data,stats})}
+   const {data,error}=await db.from('advertisements').select(manage?adminFields:publicFields).eq('id',1).single();if(error)throw error;
+   if(manage){const stats=await getAdStatistics(db,data.id,data.campaign_id);return json(res,200,{ad:data,stats})}
    return json(res,200,{ad:activeAd(data)?data:null});
   }
   if(req.query?.upload==='1'){try{return await uploadAdImage(req,res,db)}catch{return json(res,503,{error:'Не удалось загрузить фото. Проверь Storage и повтори попытку'})}}
   let ad;try{ad=validateAd(req.body?.fields)}catch(e){return json(res,400,{error:e.message})}
-  let q=db.from('advertisements').update({...ad,updated_at:new Date().toISOString()}).eq('id',1);
+  const {data:current,error:currentError}=await db.from('advertisements').select('campaign_id,title,body,button_text,target_url,image_url,advertiser,erid').eq('id',1).single();if(currentError)throw currentError;
+  const campaignFields=['title','body','button_text','target_url','image_url','advertiser','erid'];
+  const campaignChanged=campaignFields.some(key=>String(current[key]||'')!==String(ad[key]||''));
+  const campaignId=campaignChanged?globalThis.crypto.randomUUID():current.campaign_id;
+  let q=db.from('advertisements').update({...ad,campaign_id:campaignId,updated_at:new Date().toISOString()}).eq('id',1);
   if(req.body.updated_at)q=q.eq('updated_at',req.body.updated_at);
   const {data,error}=await q.select(publicFields);if(error)throw error;
   if(!data?.length)return json(res,409,{error:'Настройки изменились. Обнови панель и повтори сохранение.'});
