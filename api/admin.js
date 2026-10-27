@@ -5,7 +5,7 @@ import {requireAdmin,isAdmin} from '../_lib/auth.js';
 import {sendTelegram} from '../_lib/bot.js';
 import {notifyMatchingCandidates} from '../_lib/notify-candidates.js';
 const categories=['Склад','Доставка','Уборка','Стройка','Мероприятия','Общепит','Торговля','Другое'];
-const transitions={approve:['pending','published'],reject:['pending','rejected'],archive:['published','archived'],restore:['archived','published']};
+const transitions={approve:['pending','published'],reject:['pending','rejected'],archive:['published','archived'],restore:['archived','published'],close:['published','closed']};
 export function createAdminHandler({database=getDb,env=process.env,send=sendTelegram}={}){return async(req,res)=>{
  if(!['GET','POST'].includes(req.method))return json(res,405,{error:'Метод не поддерживается'});
  res.setHeader('Cache-Control','no-store');
@@ -62,7 +62,7 @@ export function createAdminHandler({database=getDb,env=process.env,send=sendTele
   const update={updated_at:new Date().toISOString()};
   if(b.action!=='edit'){
    const [from,to]=transitions[b.action];if(existing.status!==from)return json(res,409,{error:'Статус объявления уже изменился'});
-   update.status=to;if(to==='published')update.source_allowed=true;
+   update.status=to;if(to==='closed')update.closed_at=new Date().toISOString();else if(to==='published')update.closed_at=null;if(to==='published')update.source_allowed=true;
   }else{
    const f=b.fields||{};
    if(f.is_urgent!==undefined){if(typeof f.is_urgent!=='boolean')return json(res,400,{error:'Некорректное значение срочности'});update.is_urgent=f.is_urgent}
