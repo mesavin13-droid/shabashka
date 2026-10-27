@@ -56,8 +56,9 @@ export function createAdminHandler({database=getDb,env=process.env,send=sendTele
   }
   if(!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(String(b.id||'')))return json(res,400,{error:'Некорректный ID'});
   if(!['edit',...Object.keys(transitions)].includes(b.action))return json(res,400,{error:'Некорректное действие'});
-  const {data:existing,error:findError}=await db.from('jobs').select('id,status,updated_at').eq('id',b.id).single();
+  const {data:existing,error:findError}=await db.from('jobs').select('id,type,status,updated_at').eq('id',b.id).single();
   if(findError||!existing)return json(res,404,{error:'Объявление не найдено'});
+  if(b.action==='close'&&existing.type!=='vacancy')return json(res,400,{error:'Закрывать можно только вакансии'});
   if(b.updated_at&&b.updated_at!==existing.updated_at)return json(res,409,{error:'Объявление изменилось. Обнови список перед сохранением.'});
   const update={updated_at:new Date().toISOString()};
   if(b.action!=='edit'){
