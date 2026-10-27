@@ -337,10 +337,20 @@ function adScheduleNotice(a){
 }
 async function loadAdSettings(){
  if(state.mode==='demo')return;
- try{const r=await api('/api/ads?manage=1');state.ad=r.ad;renderAdSettings()}catch(err){$('#ad-settings-body').innerHTML=`<p>${safe(err.message)}</p>`}
+ try{const r=await api('/api/ads?manage=1');state.ad=r.ad;state.adStats=r.stats||{};renderAdSettings()}catch(err){$('#ad-settings-body').innerHTML=`<p>${safe(err.message)}</p>`}
+}
+function renderAdStats(){
+ const root=$('#ad-stats');if(!root)return;
+ const s=state.adStats||{},recent=s.last30Days||{},fmt=n=>Number(n||0).toLocaleString('ru-RU');
+ const rate=(clicks,impressions)=>impressions?((Number(clicks||0)/Number(impressions))*100).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':'0%';
+ root.innerHTML=`<div class="applications-head"><h3>Статистика рекламы</h3><button type="button" class="text-button" data-refresh-ad-stats>Обновить</button></div><div class="admin-overview ad-stats-overview"><div><span>Показы всего</span><strong>${fmt(s.impressions)}</strong></div><div><span>Клики всего</span><strong>${fmt(s.clicks)}</strong></div><div><span>CTR</span><strong>${rate(s.clicks,s.impressions)}</strong></div></div><p class="form-note">За 30 дней: ${fmt(recent.impressions)} показов · ${fmt(recent.clicks)} кликов · CTR ${rate(recent.clicks,recent.impressions)}.</p>`;
+}
+async function refreshAdStats(){
+ try{const r=await api('/api/ads?manage=1');state.adStats=r.stats||{};renderAdStats();toast('Статистика рекламы обновлена')}catch(err){toast(err.message||'Не удалось обновить статистику')}
 }
 function renderAdSettings(){const a=state.ad;if(!a)return;
- $('#ad-settings-body').innerHTML=`<p class="form-note">Баннер показывается один раз за посещение. Здесь можно настроить размещение рекламодателя. Оплату и стоимость размещения вы согласуете отдельно.</p><p class="form-note" role="status">${adScheduleNotice(a)}</p><form id="ad-form" data-updated="${safe(a.updated_at)}" class="editor-fields"><label class="ad-enabled"><input type="checkbox" name="enabled" ${a.enabled?'checked':''}> Показывать баннер</label><label>Заголовок<input name="title" maxlength="100" required value="${safe(a.title)}"></label><label>Текст<textarea name="body" maxlength="500" required rows="3">${safe(a.body)}</textarea></label><label>Текст кнопки<input name="button_text" maxlength="40" required value="${safe(a.button_text)}"></label><label>Ссылка кнопки (https://)<input type="url" pattern="https://.*" name="target_url" maxlength="2000" required value="${safe(a.target_url)}"></label><div class="ad-image-field"><div><strong class="ad-image-heading">Фото рекламного баннера · 16:9</strong><p class="form-note">Выбери фото из галереи или сделай новое. Оно будет обрезано до 16:9.</p></div><label class="ad-file-picker"><input type="file" id="ad-image-file" accept="image/*"><span>Выбрать фото с телефона</span></label><p class="ad-image-status" id="ad-image-status" role="status">${a.image_url?"Фото уже загружено. Можно заменить его.":"Фото не выбрано."}</p><div id="ad-image-preview-wrap" class="ad-image-preview-wrap ${a.image_url?"":"hidden"}"><img id="ad-image-preview" class="ad-image-preview" src="${safe(a.image_url||"")}" alt="Предпросмотр рекламного фото"><button type="button" data-remove-ad-image class="text-button">Убрать фото</button></div><input type="hidden" name="image_url" value="${safe(a.image_url||"")}"></div><label>Рекламодатель<input name="advertiser" maxlength="120" required value="${safe(a.advertiser)}"></label><label>Идентификатор рекламы erid (если присвоен)<input name="erid" maxlength="150" value="${safe(a.erid)}"></label><div class="form-row"><label>Начало показа<input type="datetime-local" name="starts_at" value="${adDateInput(a.starts_at)}"></label><label>Окончание показа<input type="datetime-local" name="ends_at" value="${adDateInput(a.ends_at)}"></label></div><p class="form-note">Время указано для часового пояса этого устройства. Пустые даты — показ без ограничения срока.</p><div class="admin-actions"><button type="submit" class="primary">Сохранить баннер</button><button type="button" data-preview-ad>Предпросмотр</button></div></form>`;
+ $('#ad-settings-body').innerHTML=`<p class="form-note">Баннер показывается один раз за посещение. Здесь можно настроить размещение рекламодателя. Оплату и стоимость размещения вы согласуете отдельно.</p><p class="form-note" role="status">${adScheduleNotice(a)}</p><div id="ad-stats" class="ad-stats"></div><form id="ad-form" data-updated="${safe(a.updated_at)}" class="editor-fields"><label class="ad-enabled"><input type="checkbox" name="enabled" ${a.enabled?'checked':''}> Показывать баннер</label><label>Заголовок<input name="title" maxlength="100" required value="${safe(a.title)}"></label><label>Текст<textarea name="body" maxlength="500" required rows="3">${safe(a.body)}</textarea></label><label>Текст кнопки<input name="button_text" maxlength="40" required value="${safe(a.button_text)}"></label><label>Ссылка кнопки (https://)<input type="url" pattern="https://.*" name="target_url" maxlength="2000" required value="${safe(a.target_url)}"></label><div class="ad-image-field"><div><strong class="ad-image-heading">Фото рекламного баннера · 16:9</strong><p class="form-note">Выбери фото из галереи или сделай новое. Оно будет обрезано до 16:9.</p></div><label class="ad-file-picker"><input type="file" id="ad-image-file" accept="image/*"><span>Выбрать фото с телефона</span></label><p class="ad-image-status" id="ad-image-status" role="status">${a.image_url?"Фото уже загружено. Можно заменить его.":"Фото не выбрано."}</p><div id="ad-image-preview-wrap" class="ad-image-preview-wrap ${a.image_url?"":"hidden"}"><img id="ad-image-preview" class="ad-image-preview" src="${safe(a.image_url||"")}" alt="Предпросмотр рекламного фото"><button type="button" data-remove-ad-image class="text-button">Убрать фото</button></div><input type="hidden" name="image_url" value="${safe(a.image_url||"")}"></div><label>Рекламодатель<input name="advertiser" maxlength="120" required value="${safe(a.advertiser)}"></label><label>Идентификатор рекламы erid (если присвоен)<input name="erid" maxlength="150" value="${safe(a.erid)}"></label><div class="form-row"><label>Начало показа<input type="datetime-local" name="starts_at" value="${adDateInput(a.starts_at)}"></label><label>Окончание показа<input type="datetime-local" name="ends_at" value="${adDateInput(a.ends_at)}"></label></div><p class="form-note">Время указано для часового пояса этого устройства. Пустые даты — показ без ограничения срока.</p><div class="admin-actions"><button type="submit" class="primary">Сохранить баннер</button><button type="button" data-preview-ad>Предпросмотр</button></div></form>`;
+ renderAdStats();
 }
 async function uploadAdPhoto(file){
  if(!file.type.startsWith("image/"))throw new Error("Выбери файл изображения.");
@@ -363,11 +373,20 @@ async function uploadAdPhoto(file){
   if(!result.image_url)throw new Error("Сервер не вернул адрес загруженного фото.");return result.image_url;
  }finally{URL.revokeObjectURL(objectUrl)}
 }
+function adTrackingSession(){
+ const valid=v=>typeof v==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(v);
+ const create=()=>globalThis.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&3|8)).toString(16)});
+ try{const key='shabashka:ad-session',old=sessionStorage.getItem(key);if(valid(old))return old;const id=create();sessionStorage.setItem(key,id);return id}catch{return create()}
+}
+function trackAdEvent(event_type){
+ const session_id=adTrackingSession();
+ api('/api/ads?event=track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event_type,session_id})}).catch(()=>{});
+}
 function openEntryAd(a){
  const link=adUrl(a.target_url),image=adUrl(a.image_url);if(!link){toast('Проверь ссылку баннера: нужен адрес https://');return false}
  $('#modal-content').innerHTML=`<div class="entry-ad"><div class="entry-ad-label"><span>Реклама</span><span>ШАБАШКА / ПАРТНЁРЫ</span></div>${image?`<img class="entry-ad-image" src="${safe(image)}" alt="${safe(a.title)}" referrerpolicy="no-referrer">`:`<div class="entry-ad-art" aria-hidden="true"><span class="entry-ad-icon">${icon('briefcase')}</span><span class="entry-ad-orbit"></span><span class="entry-ad-mini">${icon('users')}</span><span class="entry-ad-location">Новосибирск</span></div>`}<h2 id="modal-title">${safe(a.title)}</h2><p class="entry-ad-body">${safe(a.body)}</p><a class="entry-ad-cta" href="${safe(link)}" target="_blank" rel="sponsored noopener noreferrer">${safe(a.button_text)} ${icon('arrow-right')}</a><button class="entry-ad-skip" data-close="modal">Продолжить к объявлениям</button><p class="entry-ad-legal">Рекламодатель: ${safe(a.advertiser)}${a.erid?` · erid: ${safe(a.erid)}`:''}</p></div>`;
  const img=$('.entry-ad-image');if(img)img.addEventListener('error',()=>img.remove(),{once:true});
- $('#job-modal').classList.remove('hidden');document.body.style.overflow='hidden';activateModal();return true;
+ $('#job-modal').classList.remove('hidden');document.body.style.overflow='hidden';activateModal();trackAdEvent('impression');return true;
 }
 async function showEntryAd(){
  if(state.mode!=='live'||!$('#job-modal').classList.contains('hidden'))return;
@@ -406,6 +425,8 @@ async function init(){
  finally{input.disabled=false;input.value="";if(picker)picker.classList.remove("is-uploading");if(save)save.disabled=false}
 });
 document.addEventListener('click',async e=>{
+ if(e.target.closest('.entry-ad-cta')){trackAdEvent('click');return}
+ if(e.target.closest('[data-refresh-ad-stats]')){await refreshAdStats();return}
  if(e.target.closest('[data-copy-vacancy]')){const input=$('#vacancy-template');try{await navigator.clipboard.writeText(input.value);toast('Шаблон скопирован — заполни и отправь боту')}catch{input.focus();input.select();toast('Шаблон выделен. Скопируй его через меню браузера.')}return}
  const cat=e.target.closest('[data-cat]');if(cat){state.category=cat.dataset.cat;renderJobs();return}
  const remove=e.target.closest('[data-remove-filter]');if(remove){const key=remove.dataset.removeFilter;state[key]=key==='category'?'Все':'';if(key==='district')$('#district-filter').value='';if(key==='date')$('#date-filter').value='';if(key==='minPay')$('#pay-filter').value='';renderJobs();return}
