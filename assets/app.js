@@ -386,7 +386,7 @@ function openEntryAd(a){
  const link=adUrl(a.target_url),image=adUrl(a.image_url);if(!link){toast('Проверь ссылку баннера: нужен адрес https://');return false}
  $('#modal-content').innerHTML=`<div class="entry-ad"><div class="entry-ad-label"><span>Реклама</span><span>ШАБАШКА / ПАРТНЁРЫ</span></div>${image?`<img class="entry-ad-image" src="${safe(image)}" alt="${safe(a.title)}" referrerpolicy="no-referrer">`:`<div class="entry-ad-art" aria-hidden="true"><span class="entry-ad-icon">${icon('briefcase')}</span><span class="entry-ad-orbit"></span><span class="entry-ad-mini">${icon('users')}</span><span class="entry-ad-location">Новосибирск</span></div>`}<h2 id="modal-title">${safe(a.title)}</h2><p class="entry-ad-body">${safe(a.body)}</p><a class="entry-ad-cta" href="${safe(link)}" target="_blank" rel="sponsored noopener noreferrer">${safe(a.button_text)} ${icon('arrow-right')}</a><button class="entry-ad-skip" data-close="modal">Продолжить к объявлениям</button><p class="entry-ad-legal">Рекламодатель: ${safe(a.advertiser)}${a.erid?` · erid: ${safe(a.erid)}`:''}</p></div>`;
  const img=$('.entry-ad-image');if(img)img.addEventListener('error',()=>img.remove(),{once:true});
- $('#job-modal').classList.remove('hidden');document.body.style.overflow='hidden';activateModal();trackAdEvent('impression');return true;
+ $('#job-modal').classList.remove('hidden');document.body.style.overflow='hidden';activateModal();if(!state.user?.admin)trackAdEvent('impression');return true;
 }
 async function showEntryAd(){
  if(state.mode!=='live'||!$('#job-modal').classList.contains('hidden'))return;
@@ -425,7 +425,7 @@ async function init(){
  finally{input.disabled=false;input.value="";if(picker)picker.classList.remove("is-uploading");if(save)save.disabled=false}
 });
 document.addEventListener('click',async e=>{
- if(e.target.closest('.entry-ad-cta')){trackAdEvent('click');return}
+ if(e.target.closest('.entry-ad-cta')){if(!state.user?.admin)trackAdEvent('click');return}
  if(e.target.closest('[data-refresh-ad-stats]')){await refreshAdStats();return}
  if(e.target.closest('[data-copy-vacancy]')){const input=$('#vacancy-template');try{await navigator.clipboard.writeText(input.value);toast('Шаблон скопирован — заполни и отправь боту')}catch{input.focus();input.select();toast('Шаблон выделен. Скопируй его через меню браузера.')}return}
  const cat=e.target.closest('[data-cat]');if(cat){state.category=cat.dataset.cat;renderJobs();return}
