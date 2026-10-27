@@ -1,7 +1,7 @@
 import process from 'node:process';
 import {json} from '../_lib/http.js';
 import {getDb} from '../_lib/db.js';
-import {getIdentity} from '../_lib/auth.js';
+import {getIdentity,isAdmin} from '../_lib/auth.js';
 import {sendTelegram} from '../_lib/bot.js';
 
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
@@ -63,6 +63,24 @@ export function createApplicationsHandler({database=getDb,env=process.env,send=s
    }
 
    const body=req.body||{};
+   if(body.action==='close'){
+    const jobId=clean(body.job_id,36);
+    if(!UUID.test(jobId))return json(res,400,{error:'Некорректная вакансия'});
+    const {data:job,error:jobError}=await db.from('jobs').select('id,type,status,imported_by,source_key,closed_at').eq('id',jobId).maybeSingle();
+    if(jobError)throw jobError;
+    if(!job)return json(res,404,{error:'Вакансия не найдена'});
+    if(job.type!=='vacancy')return json(res,400,{error:'Можно закрывать только вакансии'});
+    if(job.status==='closed')return json(res,200,{ok:true,alreadyClosed:true,closed_at:job.closed_at});
+    if(job.status!=='published')return json(res,409,{error:'Закрыть можно только опубликованную вакансию'});
+    const admin=isAdmin(telegramId,env);
+    const owner=role==='employer'&&String(job.imported_by||'')===telegramId&&String(job.source_key||'').startsWith('manual:');
+    if(!admin&&!owner)return json(res,403,{error:'Закрыть вакансию может только её автор или администратор'});
+    const closedAt=new Date().toISOString();
+    const {data:updated,error:updateError}=await db.from('jobs').update({status:'closed',closed_at:closedAt,updated_at:closedAt}).eq('id',jobId).eq('status','published').select('id,closed_at').maybeSingle();
+    if(updateError)throw updateError;
+    if(!updated)return json(res,409,{error:'Вакансия уже изменилась. Обнови список.'});
+    return json(res,200,{ok:true,closed_at:updated.closed_at,delete_after_hours:3});
+   }
    if(body.action==='status'){
     if(role!=='employer')return json(res,403,{error:'Раздел доступен работодателям'});
     const applicationId=clean(body.application_id,36),status=clean(body.status,20);
