@@ -35,7 +35,8 @@ export function parseMessage(text,sentAt=new Date()){
  const lines=raw.split('\n').map(x=>x.trim().replace(/^[\s\p{Emoji_Presentation}\p{Extended_Pictographic}•▪▶✅‼!#—–-]+/gu,'')).filter(Boolean);
  const ancillary=/^(?:отправим|довез[её]м|доставим|развоз|проезд|такси|компенсац|корпоративн.{0,15}транспорт|бесплатн.{0,10}(?:такси|доставк))/i;
  const relevant=lines.filter(x=>!ancillary.test(x));
- const titleLine=relevant.find(x=>x.length>=8&&/^(?:выгруж|фасов|разгруз|разгруж|перелож|перестав|перенос|перенести|перемест|погруз|упаков|комплектов|работать|убрать|собир|достав|помогать|переносить)/i.test(x))||relevant.find(x=>x.length>=8&&categories.some(([,re])=>re.test(x))&&!/^(?:оплата|график|обязанности|условия|адрес|район|контакт)/i.test(x))||relevant.find(x=>x.length>=8)||s;
+ const taskMatch=s.match(/(?:выгруж(?:ать|ить)?|фасовать|разгруз(?:ить|ать)?|переложить|переставить|перенос(?:ить)?|погрузить|упаковывать|комплектовать|работать\s+по\s+складу|собирать|убирать|доставлять)[^.!?]{0,180}/i);
+ const titleLine=taskMatch?.[0].trim()||relevant.find(x=>x.length>=8&&/^(?:выгруж|фасов|разгруз|разгруж|перелож|перестав|перенос|перенести|перемест|погруз|упаков|комплектов|работать|убрать|собир|достав|помогать|переносить)/i.test(x))||relevant.find(x=>x.length>=8&&categories.some(([,re])=>re.test(x))&&!/^(?:оплата|график|обязанности|условия|адрес|район|контакт)/i.test(x))||relevant.find(x=>x.length>=8)||s;
  const heading=titleLine.split(/[!?]|\.(?!\d)/)[0].trim();
  const category=categories.find(([,re])=>re.test(heading))?.[0]||categories.find(([,re])=>re.test(relevant.join(' ')))?.[0]||'Другое';
  const district=districts.find(d=>new RegExp(d.replace(/(?:ий|ый)$/,''),'i').test(s))||null;
@@ -53,13 +54,13 @@ export function parseMessage(text,sentAt=new Date()){
  const explicitDate=s.match(/\b(0?[1-9]|[12]\d|3[01])\.(0?[1-9]|1[0-2])(?:\.(\d{2,4}))?\b/);
  const datePart=/послезавтра/i.test(s)?'Послезавтра':/завтра/i.test(s)?'Завтра':/сегодня/i.test(s)?'Сегодня':explicitDate?String(explicitDate[1]).padStart(2,'0')+'.'+String(explicitDate[2]).padStart(2,'0'):/выходн/i.test(s)?'Выходные':'График уточняется';
  const until=s.match(/до\s*([01]?\d|2[0-3])[:.]([0-5]\d)/i);
- const startOnly=s.match(/(?:\bк|\bна|начало\s*[:—-]?|\bс)\s*([01]?\d|2[0-3])[:.]([0-5]\d)\b/i);
+ const startOnly=s.match(/(?:к|на|начало\s*[:—-]?|с)\s*([01]?\d|2[0-3])[:.]([0-5]\d)\b/i);
  const schedule=validTime?`${datePart} · ${time[1].padStart(2,'0')}:${time[2]||'00'}–${time[3].padStart(2,'0')}:${time[4]||'00'}`:startOnly?`${datePart} · к ${startOnly[1].padStart(2,'0')}:${startOnly[2]}`:until?`${datePart} · до ${until[1].padStart(2,'0')}:${until[2]}`:datePart;
  let work_date=null;
  const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Novosibirsk',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(sentAt),get=t=>p.find(x=>x.type===t).value;
  if(explicitDate){let year=explicitDate[3]?Number(explicitDate[3].length===2?'20'+explicitDate[3]:explicitDate[3]):Number(get('year'));const month=Number(explicitDate[2]),day=Number(explicitDate[1]);const target=new Date(Date.UTC(year,month-1,day,12));if(target.getUTCMonth()===month-1&&target.getUTCDate()===day){if(!explicitDate[3]&&target.toISOString().slice(0,10)<`${get('year')}-${get('month')}-${get('day')}`)year++;const d=new Date(Date.UTC(year,month-1,day,12));work_date=d.toISOString().slice(0,10)}}
  else if(['Сегодня','Завтра','Послезавтра'].includes(datePart)){const d=new Date(`${get('year')}-${get('month')}-${get('day')}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+['Сегодня','Завтра','Послезавтра'].indexOf(datePart));work_date=d.toISOString().slice(0,10)}
- const countPattern='(?:\d{1,2}|один|одна|одно|одного|одну|два|две|двух|три|тр[её]х|четыре|четыр[её]х|пять|пят[ьи]|шесть|шест[ьи]|семь|сем[ьи]|восемь|восьм[ьи]|девять|девят[ьи]|десять|десят[ьи])';
+ const countPattern='(?:\\d{1,2}|один|одна|одно|одного|одну|два|две|двух|три|тр[её]х|четыре|четыр[её]х|пять|пят[ьи]|шесть|шест[ьи]|семь|сем[ьи]|восемь|восьм[ьи]|девять|девят[ьи]|десять|десят[ьи])';
  const countWords={один:1,одна:1,одно:1,одного:1,одну:1,два:2,две:2,двух:2,три:3,'трёх':3,трех:3,четыре:4,'четырёх':4,четырех:4,пять:5,пяти:5,шесть:6,шести:6,семь:7,семи:7,восемь:8,восьми:8,девять:9,девяти:9,десять:10,десяти:10};
  const need=s.match(new RegExp('(?:нужн[ыоа]?|требу(?:ется|ются)|ищем)\\s*(?:ещ[её]\\s*)?('+countPattern+')\\s*(?:человек|чел\\b|грузчик|разнорабоч|курьер|упаковщик)','i'))||s.match(new RegExp('('+countPattern+')\\s*(?:человек|чел\\b)','i'));
  const needCount=need?(Number.isFinite(Number(need[1]))?Number(need[1]):countWords[need[1].toLowerCase()]??countWords[need[1].toLowerCase().replace('ё','е')]):null;
