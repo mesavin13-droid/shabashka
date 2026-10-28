@@ -25,7 +25,7 @@ export function splitVacancyBatch(input){
  for(let i=0;i<lines.length;i++)if(/^\s*\d{1,2}[.)]\s+/.test(lines[i]))starts.push(i);
  if(starts.length<2)return [raw];
  const prefix=lines.slice(0,starts[0]).join('\n').trim();const parts=[];
- const stopLine=/^\s*(?:кто готов|кто заинтересован|для записи|запись по|пишите|пиши|напишите|контакт(?:ы)?\s*:|просьба\b|не звонить\b|звонить не\b|отправьте|чтобы записаться)\b/i;
+ const stopLine=/^\s*(?:кто готов|кто заинтересован|для записи|запись по|пишите|пиши|напишите|контакт(?:ы)?\s*:|просьба|не звонить|звонить не|отправьте|чтобы записаться)/i;
  for(let n=0;n<starts.length;n++){const end=n+1<starts.length?starts[n+1]:lines.length;let body=lines.slice(starts[n],end);const stop=body.findIndex(line=>stopLine.test(line));if(stop>=0)body=body.slice(0,stop);const section=body.join('\n').trim();if(!section)continue;const combined=[prefix,section].filter(Boolean).join('\n\n');if(combined.length>=15&&combined.length<=4000)parts.push(combined)}
  return parts.length>=2?parts:[raw];
 }
@@ -35,7 +35,7 @@ export function parseMessage(text,sentAt=new Date()){
  const lines=raw.split('\n').map(x=>x.trim().replace(/^[\s\p{Emoji_Presentation}\p{Extended_Pictographic}•▪▶✅‼!#—–-]+/gu,'')).filter(Boolean);
  const ancillary=/^(?:отправим|довез[её]м|доставим|развоз|проезд|такси|компенсац|корпоративн.{0,15}транспорт|бесплатн.{0,10}(?:такси|доставк))/i;
  const relevant=lines.filter(x=>!ancillary.test(x));
- const taskMatch=s.match(/(?:выгруж(?:ать|ить)?|фасовать|разгруз(?:ить|ать)?|переложить|переставить|перенос(?:ить)?|погрузить|упаковывать|комплектовать|работать\s+по\s+складу|собирать|убирать|доставлять)[^.!?]{0,180}/i);
+ const taskMatch=s.match(/(?:выгруж\w*|фасов\w*|разгруз\w*|разгруж\w*|перелож\w*|перестав\w*|перенос\w*|погруз\w*|упаков\w*|комплектов\w*|работать\s+по\s+складу|собирать|убирать|доставлять)[^.!?]{0,180}/i);
  const titleLine=taskMatch?.[0].trim()||relevant.find(x=>x.length>=8&&/^(?:выгруж|фасов|разгруз|разгруж|перелож|перестав|перенос|перенести|перемест|погруз|упаков|комплектов|работать|убрать|собир|достав|помогать|переносить)/i.test(x))||relevant.find(x=>x.length>=8&&categories.some(([,re])=>re.test(x))&&!/^(?:оплата|график|обязанности|условия|адрес|район|контакт)/i.test(x))||relevant.find(x=>x.length>=8)||s;
  const heading=titleLine.split(/[!?]|\.(?!\d)/)[0].trim();
  const category=categories.find(([,re])=>re.test(heading))?.[0]||categories.find(([,re])=>re.test(relevant.join(' ')))?.[0]||'Другое';
