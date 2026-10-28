@@ -4,6 +4,7 @@ import {timingSafeEqual} from 'node:crypto';
 import {getDb} from '../_lib/db.js';
 import {isAdmin} from '../_lib/auth.js';
 import {prepareImport,importReceipt} from '../_lib/import-job.js';
+import {splitVacancyBatch} from '../_lib/parser.js';
 import {sendTelegram,answerCallback,reviewButtons} from '../_lib/bot.js';
 import {json,onlyMethod} from '../_lib/http.js';
 import {notifyMatchingCandidates} from '../_lib/notify-candidates.js';
@@ -88,7 +89,54 @@ export function createTelegramHandler({database=getDb,allowedAdmin=isAdmin,send=
    if(!savedRole?.role){await send(m.chat.id,'Сначала выбери свою роль:',{reply_markup:{inline_keyboard:[[{text:'🔎 Ищу работу',callback_data:'role:job_seeker'},{text:'🧰 Я работодатель',callback_data:'role:employer'}]]}});return json(res,200,{ok:true})}
    if(savedRole.role==='job_seeker'){await send(m.chat.id,'Ты выбрал роль «Ищу работу». Заполни резюме и выбери категории на сайте, чтобы получать подходящие вакансии. Отправлять вакансии могут работодатели.',{reply_markup:{inline_keyboard:[[{text:'Заполнить резюме',url:String(env.SITE_URL||'https://shabashka-nsk.vercel.app').replace(/\/$/,'')+'/#profile'}]]}});return json(res,200,{ok:true})}
   }
-  let record;try{record=prepareImport(m,actor.id,{autoPublish:admin&&env.TELEGRAM_AUTO_PUBLISH!=='false'})}catch(e){if(e.message!=='TEXT_LENGTH')throw e;await send(m.chat.id,'Пришли текст вакансии от 15 до 4000 символов. Подойдёт и фото с подписью. Фото без текста пока не распознаю.');return json(res,200,{ok:true})}
+  const fullText=String(m.text||m.caption||'').trim();
+   const batchParts=splitVacancyBatch(fullText);
+   if(batchParts.length>1){
+    let added=0,duplicates=0,failures=0,publishedCount=0;
+    for(let i=0;i<batchParts.length;i++){
+     let record;
+     try{record=prepareImport({...m,text:batchParts[i]},actor.id,{autoPublish:admin&&env.TELEGRAM_AUTO_PUBLISH!=='false'})}
+     catch(e){if(e.message==='TEXT_LENGTH'){failures++;continue}throw e}
+     record.source_key=String(record.source_key)+':part:'+(i+1);
+     const {data:existing,error:lookupError}=await db.from('jobs').select('id,status').or('source_key.eq.'+record.source_key+',content_hash.eq.'+record.content_hash).limit(1);
+     if(lookupError)throw lookupError;
+     if(existing?.length){
+      const prior=existing[0];
+      if(admin&&record.status==='published'&&prior.status==='pending'){
+       const {data:changed,error}=await db.from('jobs').update({status:'published',source_allowed:true,updated_at:new Date().toISOString()}).eq('id',prior.id).eq('status','pending').select('id');
+       if(error)throw error;
+       if(changed?.length){
+        const publishedRecord={...record,id:prior.id,status:'published'};
+        try{await notifyMatchingCandidates({database:db,job:publishedRecord,send,env})}catch{console.error('Candidate alerts failed after batch publish')}
+        const receipt=importReceipt(record,prior.id,env.SITE_URL);
+        try{await send(m.chat.id,receipt.text,{reply_markup:receipt.reply_markup})}catch{console.error('Batch publish receipt delivery failed')}
+        added++;publishedCount++;continue;
+       }
+      }
+      duplicates++;continue;
+     }
+     const {data:job,error}=await db.from('jobs').insert(record).select('id').single();
+     if(error){if(error.code==='23505'){duplicates++;continue}throw error}
+     if(record.status==='published'){
+      try{await notifyMatchingCandidates({database:db,job:{...record,id:job.id},send,env})}catch{console.error('Candidate alerts failed after batch import')}
+      publishedCount++;
+     }
+     const receipt=importReceipt(record,job.id,env.SITE_URL,{canManage:admin});
+     try{await send(m.chat.id,receipt.text,{reply_markup:receipt.reply_markup})}catch{console.error('Batch import receipt delivery failed')}
+     if(!admin&&record.status==='pending'){
+      for(const adminId of (env.TELEGRAM_ADMIN_IDS||'').split(',').map(x=>x.trim()).filter(Boolean)){
+       try{await send(adminId,'На модерации: объявление работодателя\n\n'+record.title+'\nКатегория: '+record.category+'\n\n'+record.summary.slice(0,3400),{reply_markup:reviewButtons(job.id,true,env.SITE_URL)})}catch{console.error('Batch moderation notification delivery failed')}
+      }
+     }
+     added++;
+    }
+    const summary=['Обработал список из '+batchParts.length+' отдельных вакансий.','Добавлено: '+added,'Уже были в базе: '+duplicates];
+    if(failures)summary.push('Не удалось разобрать: '+failures);
+    if(publishedCount)summary.push('Опубликовано: '+publishedCount);
+    await send(m.chat.id,summary.join('\n'));
+    return json(res,200,{ok:true,batch:true,total:batchParts.length,added,duplicates,failures});
+   }
+   let record;try{record=prepareImport(m,actor.id,{autoPublish:admin&&env.TELEGRAM_AUTO_PUBLISH!=='false'})}catch(e){if(e.message!=='TEXT_LENGTH')throw e;await send(m.chat.id,'Пришли текст вакансии от 15 до 4000 символов. Подойдёт и фото с подписью. Фото без текста пока не распознаю.');return json(res,200,{ok:true})}
   const {data:existing,error:lookupError}=await db.from('jobs').select('id,status').or(`source_key.eq.${record.source_key},content_hash.eq.${record.content_hash}`).limit(1);if(lookupError)throw lookupError;
   if(existing?.length){
    const prior=existing[0];
